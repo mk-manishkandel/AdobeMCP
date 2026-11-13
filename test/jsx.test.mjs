@@ -133,6 +133,27 @@ test('ai_status summarises documents and artboards', () => {
   assert.equal(second.active, false);
 });
 
+test('ai_status leaves artboards of inactive documents unreported (Illustrator returns the active ones)', () => {
+  const ctx = loadJsx(ALL_JSX, SAMPLE_STATE);
+  const second = JSON.parse(run(ctx, '__run(function(){ return ai_status({}); })')).result.documents[1];
+  assert.equal(second.artboards, null);
+  assert.equal(second.activeArtboard, null);
+  assert.match(second.note, /activate/i);
+});
+
+test('text info tolerates frames whose attribute reads throw (MRAP on real files)', () => {
+  const ctx = loadJsx(ALL_JSX, SAMPLE_STATE);
+  const code = `var boom = function () { throw new Error("MRAP"); };
+    var range = { characters: { length: 0 } };
+    range.__defineGetter__('characterAttributes', boom);
+    range.__defineGetter__('paragraphAttributes', boom);
+    var tf = { contents: 'Hi', kind: 'point', textRange: range };
+    __run(function(){ return __textInfo(tf); })`;
+  const res = JSON.parse(run(ctx, `var TextType = { AREATEXT: 'area', PATHTEXT: 'path' }; ${code}`));
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual(res.result, { text: 'Hi', kind: 'point', font: null, size: null, color: null, tracking: null, leading: null, align: null });
+});
+
 test('ai_run_script returns the last expression and reports errors against the caller code', () => {
   const ctx = loadJsx(ALL_JSX, SAMPLE_STATE);
   const ok = JSON.parse(run(ctx, '__run(function(){ return ai_run_script({ code: "var a = 2; ({ v: a * 21 })" }); })'));

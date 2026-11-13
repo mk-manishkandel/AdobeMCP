@@ -48,17 +48,23 @@ function __firstChar(tf) {
   return r.characters.length ? r.characters[0] : r;
 }
 
+/* Calls fn(); returns null instead of throwing. Some real-world frames (empty,
+   threaded or legacy text) throw 'MRAP' on attribute reads. */
+function __tryGet(fn) {
+  try { return fn(); } catch (e) { return null; }
+}
+
 function __textInfo(tf) {
-  var ca = __firstChar(tf).characterAttributes;
+  var ca = __tryGet(function () { return __firstChar(tf).characterAttributes; });
   var out = { text: __truncate(tf.contents, 300) };
   out.kind = tf.kind === TextType.AREATEXT ? 'area' : (tf.kind === TextType.PATHTEXT ? 'path' : 'point');
-  try { out.font = ca.textFont.name; } catch (e) { out.font = null; }
-  out.size = __round(ca.size);
-  out.color = __colorHex(ca.fillColor);
-  out.tracking = ca.tracking;
-  out.leading = ca.autoLeading ? 'auto' : __round(ca.leading);
-  try { out.align = __alignName(tf.textRange.paragraphAttributes.justification); } catch (e2) { out.align = null; }
-  if (out.kind === 'area') out.overflow = __overflows(tf);
+  out.font = __tryGet(function () { return ca.textFont.name; });
+  out.size = __tryGet(function () { return __round(ca.size); });
+  out.color = __tryGet(function () { return __colorHex(ca.fillColor); });
+  out.tracking = __tryGet(function () { return ca.tracking; });
+  out.leading = __tryGet(function () { return ca.autoLeading ? 'auto' : __round(ca.leading); });
+  out.align = __tryGet(function () { return __alignName(tf.textRange.paragraphAttributes.justification); });
+  if (out.kind === 'area') out.overflow = __tryGet(function () { return __overflows(tf); });
   return out;
 }
 

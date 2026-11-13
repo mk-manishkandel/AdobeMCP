@@ -97,19 +97,29 @@ function __docPath(doc) {
   }
 }
 
+/* Illustrator quirk: artboards of an INACTIVE document read back as the active
+   document's artboards, so they are only reported for the active one. */
 function __docSummary(doc, index) {
-  var artboards = [];
-  for (var i = 0; i < doc.artboards.length; i++) artboards.push(__artboardInfo(doc, i));
-  return {
+  var active = index === 0;
+  var out = {
     index: index,
     name: doc.name,
-    active: index === 0,
+    active: active,
     path: __docPath(doc),
     saved: doc.saved,
     colorSpace: __colorSpaceName(doc),
-    activeArtboard: doc.artboards.getActiveArtboardIndex(),
-    artboards: artboards
+    activeArtboard: null,
+    artboards: null
   };
+  if (!active) {
+    out.note = 'Artboards are only readable for the active document; activate it (ai_open its path) to inspect.';
+    return out;
+  }
+  var artboards = [];
+  for (var i = 0; i < doc.artboards.length; i++) artboards.push(__artboardInfo(doc, i));
+  out.activeArtboard = doc.artboards.getActiveArtboardIndex();
+  out.artboards = artboards;
+  return out;
 }
 
 /* ---------- layers ---------- */

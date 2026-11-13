@@ -33,7 +33,8 @@ export const ILLUSTRATOR_INSTRUCTIONS = [
 const statusTool = {
   name: 'ai_status',
   description:
-    'Report Illustrator version and every open document (name, path, colour space, artboards with sizes, active artboard). ' +
+    'Report Illustrator version and every open document (name, path, saved state, colour space); artboards with sizes ' +
+    'and the active artboard are listed for the active document only (Illustrator cannot read them for the others). ' +
     'Call this first to check that Illustrator is reachable.',
   inputSchema: objectSchema({}),
   annotations: { readOnlyHint: true },

@@ -7,7 +7,7 @@ import { BridgeError, ErrorCodes } from '../../errors.mjs';
 import { textContent } from '../../tools.mjs';
 
 export const COLOR_PATTERN = '^#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$';
-export const PAINT_PATTERN = '^(none|#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3}))$';
+export const PAINT_PATTERN = '^(none|#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})|swatch:.+)$';
 export const PATH_PATTERN = '^(/|~/)';
 
 export const artboard = (extra = '') => ({
@@ -48,10 +48,40 @@ export const paint = (description, extra = {}) => ({
   required: ['stops'],
   additionalProperties: false,
   description:
-    `${description}: "#RRGGBB", "none", or a gradient ` +
+    `${description}: "#RRGGBB", "none", "swatch:<name>" (a document swatch, also patterns), or a gradient ` +
     '{"type":"linear","angle":-90,"stops":[{"color":"#FFE259"},{"color":"#FF2E7E"}]}',
   ...extra,
 });
+
+/** Dash pattern, caps and joins shared by the shape tools. */
+export const strokeStyle = Object.freeze({
+  dash: {
+    type: 'array',
+    items: { type: 'number', minimum: 0 },
+    maxItems: 6,
+    description: 'Dash pattern in px, e.g. [12, 6] (dash, gap, ...); [] = solid',
+  },
+  cap: { type: 'string', enum: ['butt', 'round', 'square'], description: 'Line end caps' },
+  join: { type: 'string', enum: ['miter', 'round', 'bevel'], description: 'Corner joins' },
+});
+
+const point = { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 };
+
+/** A path vertex: [x, y], or {x, y, in, out} where in/out are absolute Bezier handle positions. */
+export const vertex = {
+  type: ['array', 'object'],
+  items: { type: 'number' },
+  minItems: 2,
+  maxItems: 2,
+  properties: {
+    x: { type: 'number' },
+    y: { type: 'number' },
+    in: { ...point, description: 'Incoming handle [x, y]' },
+    out: { ...point, description: 'Outgoing handle [x, y]' },
+  },
+  required: ['x', 'y'],
+  additionalProperties: false,
+};
 
 export const filePath = (description) => ({
   type: 'string',

@@ -166,6 +166,103 @@ async function capabilities(c) {
   await c.must('ai_close', { document: 'LiveCaps' });
 }
 
+async function structureAndLibrary(c) {
+  console.log('curves, strokes, groups, pathfinder, layers, swatches, symbols, styles');
+  await c.must('ai_new_document', { width: 1200, height: 900, background: '#FFFFFF', name: 'LiveMore' });
+  const curve = await c.must('ai_add_shape', {
+    shape: 'path', closed: true, fill: '#2878DC', name: 'Drop',
+    vertices: [{ x: 100, y: 60, in: [60, 60], out: [140, 60] }, [180, 200], [20, 200]],
+  });
+  check('curved path', curve.type === 'path' && near(curve.y, 60, 2) && curve.h > 120, JSON.stringify(curve));
+  await c.must('ai_add_shape', { shape: 'line', x: 220, y: 60, x2: 420, y2: 60, stroke: '#000000', stroke_width: 6, dash: [12, 6], cap: 'round', name: 'Dashed' });
+  const dash = await c.callTool('ai_run_script', { code: "var p=app.activeDocument.pageItems.getByName('Dashed'); p.strokeDashes.length+' '+p.strokeCap" });
+  check('dash + round cap', /^2 StrokeCap.ROUNDENDCAP/.test(dash.text), dash.text);
+  await c.must('ai_set_item', { item: 'Drop', blend_mode: 'multiply' });
+  const bm = await c.callTool('ai_run_script', { code: "String(app.activeDocument.pageItems.getByName('Drop').blendingMode)" });
+  check('blend mode', /MULTIPLY/.test(bm.text), bm.text);
+
+  await c.must('ai_swatch', { action: 'add', name: 'Brand Gold', color: '#FFC20E' });
+  const sw = await c.must('ai_add_shape', { shape: 'rectangle', x: 450, y: 40, w: 100, h: 60, fill: 'swatch:Brand Gold', name: 'SwatchRect' });
+  check('swatch paint', sw.fill === '#ffc20e', JSON.stringify(sw));
+  const swl = await c.must('ai_swatch', { action: 'list', query: 'brand' });
+  check('swatch list', swl.total === 1 && swl.items[0].kind === 'color', JSON.stringify(swl));
+
+  await c.must('ai_add_shape', { shape: 'rectangle', x: 40, y: 260, w: 160, h: 120, fill: '#E83A3A', name: 'PA' });
+  await c.must('ai_add_shape', { shape: 'ellipse', x: 120, y: 300, w: 120, h: 120, fill: '#2878DC', name: 'PB' });
+  const pf = await c.must('ai_pathfinder', { items: ['PA', 'PB'], operation: 'minus_front', name: 'Cut' });
+  check('pathfinder minus_front', pf.name === 'Cut' && near(pf.w, 160, 1) && near(pf.h, 120, 1) && pf.fill === '#e83a3a', JSON.stringify(pf));
+
+  await c.must('ai_add_shape', { shape: 'rectangle', x: 300, y: 260, w: 200, h: 140, fill: '#00A86B', name: 'Photoish' });
+  await c.must('ai_add_shape', { shape: 'ellipse', x: 340, y: 270, w: 120, h: 120, name: 'Circle' });
+  const clip = await c.must('ai_group', { action: 'clip', items: ['Photoish'], mask: 'Circle', name: 'Clipped' });
+  check('clipping mask', clip.type === 'group' && near(clip.w, 120, 1) && near(clip.h, 120, 1), JSON.stringify(clip));
+  const un = await c.must('ai_group', { action: 'ungroup', item: 'Clipped' });
+  check('release clip', un.ungrouped.length === 1 && un.removed_mask && near(un.ungrouped[0].w, 200), JSON.stringify(un));
+  const g = await c.must('ai_group', { action: 'group', items: ['SwatchRect', 'Dashed'], name: 'Pair' });
+  check('group', g.type === 'group' && near(g.x, 220, 4) && near(g.w, 330, 6), JSON.stringify(g));
+
+  const la = await c.must('ai_layer', { action: 'add', name: 'Overlay', position: 'top' });
+  check('layer add on top', la.layers[0].name === 'Overlay', JSON.stringify(la.layers));
+  const lu = await c.must('ai_layer', { action: 'update', name: 'Overlay', new_name: 'FX', locked: true });
+  check('layer update', lu.layers[0].name === 'FX' && lu.layers[0].locked, JSON.stringify(lu.layers));
+  const ld = await c.must('ai_layer', { action: 'delete', name: 'FX' });
+  check('layer delete', !ld.layers.some((l) => l.name === 'FX'));
+
+  const sc = await c.must('ai_symbol', { action: 'create', item: 'Drop', symbol: 'DropSym', replace: true });
+  check('symbol create + replace', sc.symbol === 'DropSym' && sc.item.type === 'symbol', JSON.stringify(sc));
+  const sp = await c.must('ai_symbol', { action: 'place', symbol: 'DropSym', x: 600, y: 260, w: 80, name: 'DropCopy' });
+  check('symbol place', near(sp.x, 600) && near(sp.y, 260) && near(sp.w, 80, 1), JSON.stringify(sp));
+  const gs = await c.must('ai_graphic_style', { action: 'list' });
+  if (gs.items.length > 1) {
+    const st = (gs.items.find((s) => s.name === 'Drop Shadow') ?? gs.items.find((s) => s.name !== '[Default]')).name;
+    const ap = await c.must('ai_graphic_style', { action: 'apply', name: st, items: ['Cut'] });
+    check('graphic style merges and keeps the fill', ap.style === st && ap.items[0].fill === '#e83a3a', JSON.stringify(ap));
+  } else {
+    check('graphic styles listed', gs.total >= 1, JSON.stringify(gs));
+  }
+}
+
+async function distortTraceAndPdf(c) {
+  console.log('distort, extrude, trace, print pdf');
+  const star = (name, i) => c.must('ai_add_shape', { shape: 'star', x: 40 + i * 190, y: 500, w: 140, h: 120, fill: '#2878DC', name });
+  await star('Warp', 0);
+  await c.must('ai_distort', { item: 'Warp', effect: 'warp', style: 'arc', amount: 50 });
+  const vb = await c.callTool('ai_run_script', { code: "var b=app.activeDocument.pageItems.getByName('Warp').visibleBounds; Math.round(b[2]-b[0])" });
+  check('warp arc widens the visible shape', Number(vb.text) > 150, vb.text);
+  await star('Twirl', 1);
+  await c.must('ai_distort', { item: 'Twirl', effect: 'twirl', angle: 90 });
+  await star('Rough', 2);
+  await c.must('ai_distort', { item: 'Rough', effect: 'roughen', size: 6, detail: 12 });
+  await star('Pucker', 3);
+  const pk = await c.must('ai_distort', { item: 'Pucker', effect: 'pucker_bloat', amount: -60 });
+  check('pucker keeps item', pk.name === 'Pucker' && pk.type === 'path', JSON.stringify(pk));
+  await star('Bloat', 4);
+  await c.must('ai_distort', { item: 'Bloat', effect: 'pucker_bloat', amount: 60 });
+  await c.must('ai_add_text', { text: 'V5', x: 40, y: 700, size: 120, color: '#FFC20E', font: 'AvenirNext-Heavy', name: 'Deep' });
+  const ex = await c.must('ai_distort', { item: 'Deep', effect: 'extrude', depth: 16, angle: 45 });
+  check('extrude', typeof ex.extrude_id === 'string', JSON.stringify(ex));
+  const ew = await c.must('ai_distort', { item: 'Twirl', effect: 'warp', style: 'flag', amount: 40, expand: true });
+  check('expand live effect', ew.name === 'Twirl', JSON.stringify(ew));
+
+  const pv = await c.callTool('ai_preview', { max_size: 1200 });
+  if (process.env.LIVE_PREVIEW_OUT) writeFileSync(process.env.LIVE_PREVIEW_OUT, Buffer.from(pv.images[0].data, 'base64'));
+
+  const pr = await c.must('ai_trace_image', { list_presets: true });
+  check('tracing presets', pr.presets.includes('[Default]'), pr.presets.join(','));
+  const img = await c.must('ai_place_image', { path: assets.photo, x: 800, y: 600, w: 200, h: 200, mode: 'stretch', embed: true, name: 'ToTrace' });
+  const tr = await c.must('ai_trace_image', { item: img.id, preset: '6 Colors', name: 'Traced' });
+  check('image trace expands to vectors', tr.type === 'group' && tr.name === 'Traced', JSON.stringify(tr));
+
+  const pp = await c.must('ai_export_pdf', { list_presets: true });
+  check('pdf presets', pp.presets.includes('[High Quality Print]'), pp.presets.join(','));
+  const pdfPath = join(work, 'out/print.pdf');
+  const pdf = await c.must('ai_export_pdf', { path: pdfPath, artboards: [0], cmyk: true, bleed: 9, crop_marks: true });
+  check('print pdf (cmyk via PDF/X-1a)', existsSync(pdfPath) && readFileSync(pdfPath).subarray(0, 4).toString() === '%PDF' && pdf.preset === '[PDF/X-1a:2001]', JSON.stringify(pdf));
+  const again = await c.callTool('ai_export_pdf', { path: pdfPath });
+  check('pdf no-clobber', again.isError && /overwrite/.test(again.text), again.text);
+  await c.must('ai_close', {});
+}
+
 async function main() {
   const c = await startClient();
   try {
@@ -176,6 +273,8 @@ async function main() {
     await itemEdits(c);
     await exportsAndFiles(c);
     await capabilities(c);
+    await structureAndLibrary(c);
+    await distortTraceAndPdf(c);
     const cm = await c.must('ai_new_document', { width: 595, height: 842, color_mode: 'cmyk' });
     check('cmyk document', cm.colorSpace === 'cmyk');
     await c.must('ai_close', {});

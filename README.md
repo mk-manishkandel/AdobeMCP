@@ -120,12 +120,21 @@ All tools except `ai_run_script` use **design coordinates**:
 | `ai_list_fonts` | Search installed fonts → PostScript names (e.g. `"devanagari"`). |
 | `ai_add_text` | Point text, or area text with wrapping when `width` is given; reports overflow. `runs` styles parts of the text. |
 | `ai_set_text` | Template filling: replace text/style, keep the anchor, `max_width` / `shrink_to_fit`. |
-| `ai_add_shape` | Rectangle, rounded rectangle, ellipse, polygon, star, line, or a free path through `vertices`. Fills can be gradients. |
+| `ai_add_shape` | Rectangle, rounded rectangle, ellipse, polygon, star, line, or a free path through `vertices` (with Bézier handles for curves). Fills can be gradients or swatches; strokes can be dashed with round/square caps. |
 | `ai_place_image` | Place a photo/logo into a box: `fill` (crop), `fit`, `stretch`, `none`; linked or embedded. |
-| `ai_set_item` | Move, resize, rotate, recolour (colour or gradient, also whole groups), opacity, z-order, layer, hide/lock, duplicate (to another artboard), delete. `outline` turns text into a shape; `glow`, `shadow` and `blur` add soft effects. |
+| `ai_set_item` | Move, resize, rotate, recolour (colour or gradient, also whole groups), opacity, z-order, layer, hide/lock, duplicate (to another artboard), delete. `outline` turns text into a shape; `glow`, `shadow` and `blur` add soft effects; `blend_mode` (multiply, screen, overlay…). |
+| `ai_group` | Group, ungroup, or make a clipping mask (show items only inside a shape or text). |
+| `ai_pathfinder` | Unite, minus front/back, intersect, exclude or divide shapes. |
+| `ai_layer` | List, add, rename, show/hide, lock, reorder or delete layers. |
+| `ai_swatch` | List swatches or save a colour/gradient as a named swatch; paint with `"swatch:<name>"` (patterns too). |
+| `ai_symbol` | Turn artwork into a symbol and place instances of it. |
+| `ai_graphic_style` | List graphic styles and apply them to items. |
+| `ai_distort` | Warp (15 styles), twirl, roughen, pucker/bloat, and solid 3D-style extrusion. |
+| `ai_trace_image` | Image Trace a photo or logo into editable vector paths. |
 | `ai_align` | Align items to the artboard with a margin, individually or as a group. |
 | `ai_preview` | Render an artboard to a PNG and return it as an image so Claude can see the design. |
 | `ai_export` | Export an artboard to PNG, JPG, SVG or WebP at a given pixel width/height or scale (`overwrite: true` to replace a file). |
+| `ai_export_pdf` | Print PDF of chosen artboards with a PDF preset, bleed and crop marks; `cmyk: true` for CMYK (PDF/X-1a). |
 | `ai_undo` | Undo the last N Illustrator steps. |
 | `ai_run_script` | Escape hatch: run raw ExtendScript. Remove it with `ADOBE_MCP_ALLOW_RUN_SCRIPT=0`. |
 
@@ -143,10 +152,23 @@ Each tool's full parameter list is in its JSON schema, which Claude sees directl
   adds a blurred copy directly behind the item, named "*item* glow" / "*item* shadow" and returned as
   `glow_id` / `shadow_id` so it can be moved or deleted. `blur: N` blurs the item itself. Blurs are rendered at
   300 ppi (the document's raster-effect resolution is raised if lower).
+- **Curves:** a path vertex can be `{"x": 100, "y": 60, "in": [60, 60], "out": [140, 60]}`; `in`/`out` are the
+  Bézier handle positions in the same coordinates.
+- **Strokes:** `dash: [12, 6]`, `cap: "round"`, `join: "bevel"` on `ai_add_shape` / `ai_set_item`.
+- **Swatches and patterns:** `fill: "swatch:Brand Gold"` uses any document swatch, including pattern swatches.
+- **Distortions:** `ai_distort` warp, twirl and roughen are live effects (still editable in Illustrator's Appearance
+  panel; `expand: true` flattens them). Illustrator ignores scripted settings for Pucker & Bloat and 3D, so
+  `pucker_bloat` reshapes the curves directly and `extrude` builds a solid side from stacked copies.
 - **Text runs:** `runs: [{"match": "V5.0", "color": "#FFC20E"}, {"start": 0, "length": 3, "font": "Menlo-Bold"}]`
   on `ai_add_text` / `ai_set_text` styles parts of one text item (colour, font, size, tracking).
 - **Fonts:** some fonts appear in `ai_list_fonts` but are not activated (e.g. un-synced Adobe Fonts) and render with
   a fallback. Check with `ai_preview`; system fonts such as Avenir Next, Helvetica Neue and Menlo always work.
+
+### Not available
+
+- **Opacity masks:** Illustrator offers no scripting access (no API and no menu command), so they cannot be made
+  through this server. For a fade, use a gradient whose stops have `opacity`.
+- **True 3D (Effect > 3D and Materials):** not scriptable; `ai_distort` `extrude` gives a flat-shaded 3D look instead.
 
 ## Production behaviour
 

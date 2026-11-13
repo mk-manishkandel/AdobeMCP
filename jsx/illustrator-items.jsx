@@ -24,18 +24,34 @@ function __makeLine(layer, doc, ab, a) {
   line.setEntirePath([__toAi(doc, ab, a.x, a.y), __toAi(doc, ab, a.x2, a.y2)]);
   line.filled = false;
   line.stroked = true;
-  line.strokeColor = __makeColor(__pick(a, 'stroke', '#000000'));
+  line.strokeColor = __makePaint(__pick(a, 'stroke', '#000000'));
   line.strokeWidth = __pick(a, 'stroke_width', 1);
+  __applyStrokeStyle(line, a);
   return line;
 }
 
-/* Free-form polyline/polygon through vertices [[x, y], ...]. */
+/* Free-form path. A vertex is [x, y] or {x, y, in: [x, y], out: [x, y]} with absolute Bezier handle positions. */
+function __vertexAnchor(v) {
+  return v instanceof Array ? v : [v.x, v.y];
+}
+
+function __setHandles(doc, ab, point, v) {
+  if (v instanceof Array) return;
+  if (v['in']) point.leftDirection = __toAi(doc, ab, v['in'][0], v['in'][1]);
+  if (v.out) point.rightDirection = __toAi(doc, ab, v.out[0], v.out[1]);
+  point.pointType = v['in'] && v.out ? PointType.SMOOTH : PointType.CORNER;
+}
+
 function __makePath(layer, doc, ab, a) {
-  if (!a.vertices || a.vertices.length < 2) __fail('shape "path" needs vertices: at least 2 [x, y] points.');
+  if (!a.vertices || a.vertices.length < 2) __fail('shape "path" needs vertices: at least 2 points.');
   var pts = [];
-  for (var i = 0; i < a.vertices.length; i++) pts.push(__toAi(doc, ab, a.vertices[i][0], a.vertices[i][1]));
+  for (var i = 0; i < a.vertices.length; i++) {
+    var anchor = __vertexAnchor(a.vertices[i]);
+    pts.push(__toAi(doc, ab, anchor[0], anchor[1]));
+  }
   var path = layer.pathItems.add();
   path.setEntirePath(pts);
+  for (var j = 0; j < a.vertices.length; j++) __setHandles(doc, ab, path.pathPoints[j], a.vertices[j]);
   path.closed = a.closed;
   return path;
 }
@@ -53,6 +69,7 @@ function ai_add_shape(a) {
     var fill = __pick(a, 'fill', a.closed ? '#CCCCCC' : 'none');
     __applyPaint(item, { fill: fill, stroke: __pick(a, 'stroke', a.closed ? 'none' : '#000000') });
     __applyPaint(item, { stroke_width: __pick(a, 'stroke_width', 1) });
+    __applyStrokeStyle(item, a);
     __gradientAngle(item, fill);
   } else {
     if (!__has(a, 'w') || !__has(a, 'h')) __fail('shape "' + a.shape + '" needs w and h.');
@@ -63,6 +80,7 @@ function ai_add_shape(a) {
     }
     __applyPaint(item, { fill: __pick(a, 'fill', '#CCCCCC'), stroke: __pick(a, 'stroke', 'none') });
     if (__has(a, 'stroke_width')) __applyPaint(item, { stroke_width: a.stroke_width });
+    if (item.typename === 'PathItem') __applyStrokeStyle(item, a);
     __gradientAngle(item, __pick(a, 'fill', null));
   }
   item.opacity = a.opacity;
@@ -194,14 +212,22 @@ function __applyBasics(item, a) {
   if (__has(a, 'name')) item.name = a.name;
   if (__has(a, 'opacity')) item.opacity = a.opacity;
   if (__has(a, 'hidden')) item.hidden = a.hidden;
-  if (__has(a, 'fill') || __has(a, 'stroke') || __has(a, 'stroke_width')) {
-    var paint = {};
-    if (__has(a, 'fill')) paint.fill = a.fill;
-    if (__has(a, 'stroke')) paint.stroke = a.stroke;
-    if (__has(a, 'stroke_width')) paint.stroke_width = a.stroke_width;
-    __paintItem(item, paint);
+  if (__has(a, 'blend_mode')) item.blendingMode = BlendModes[__BLEND_MODES[a.blend_mode]];
+  var paint = {};
+  var keys = ['fill', 'stroke', 'stroke_width', 'dash', 'cap', 'join'];
+  var any = false;
+  for (var i = 0; i < keys.length; i++) {
+    if (__has(a, keys[i])) { paint[keys[i]] = a[keys[i]]; any = true; }
   }
+  if (any) __paintItem(item, paint);
 }
+
+var __BLEND_MODES = {
+  normal: 'NORMAL', multiply: 'MULTIPLY', screen: 'SCREEN', overlay: 'OVERLAY', soft_light: 'SOFTLIGHT',
+  hard_light: 'HARDLIGHT', color_dodge: 'COLORDODGE', color_burn: 'COLORBURN', darken: 'DARKEN', lighten: 'LIGHTEN',
+  difference: 'DIFFERENCE', exclusion: 'EXCLUSION', hue: 'HUE', saturation: 'SATURATIONBLEND', color: 'COLORBLEND',
+  luminosity: 'LUMINOSITY'
+};
 
 function __applyLayer(doc, item, layerName) {
   var layer = __targetLayer(doc, layerName);

@@ -4,9 +4,12 @@
  * unless the tool has its own handler.
  */
 import { documentTools } from './document-tools.mjs';
+import { effectTools } from './effect-tools.mjs';
 import { exportTools } from './export-tools.mjs';
 import { itemTools } from './item-tools.mjs';
+import { libraryTools } from './library-tools.mjs';
 import { objectSchema } from './schemas.mjs';
+import { structureTools } from './structure-tools.mjs';
 import { textTools } from './text-tools.mjs';
 
 export const ILLUSTRATOR_BUNDLE_ID = 'com.adobe.illustrator';
@@ -19,6 +22,9 @@ export const ILLUSTRATOR_JSX_FILES = Object.freeze([
   'illustrator-export.jsx',
   'illustrator-effects.jsx',
   'illustrator-transfer.jsx',
+  'illustrator-structure.jsx',
+  'illustrator-library.jsx',
+  'illustrator-distort.jsx',
 ]);
 
 export const ILLUSTRATOR_INSTRUCTIONS = [
@@ -62,6 +68,9 @@ export const ILLUSTRATOR_TOOLS = Object.freeze([
   ...documentTools,
   ...textTools,
   ...itemTools,
+  ...structureTools,
+  ...libraryTools,
+  ...effectTools,
   ...exportTools,
   runScriptTool,
 ]);

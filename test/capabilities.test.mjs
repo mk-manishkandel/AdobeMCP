@@ -95,3 +95,49 @@ test('__isGradientSpec only accepts objects with stops', () => {
   assert.equal(ctx.__isGradientSpec(null), false);
   assert.equal(ctx.__isGradientSpec(undefined), false);
 });
+
+test('path vertices accept Bezier handle objects; bad handles are rejected', () => {
+  const s = schemaOf('ai_add_shape');
+  const curve = [{ x: 0, y: 0, out: [20, -10] }, [50, 50], { x: 100, y: 0, in: [80, -10] }];
+  assert.deepEqual(validate(s, { shape: 'path', vertices: curve }), []);
+  assert.ok(validate(s, { shape: 'path', vertices: [{ x: 0 }, [1, 1]] }).length > 0, 'y is required');
+  assert.ok(validate(s, { shape: 'path', vertices: [{ x: 0, y: 0, in: [1] }, [1, 1]] }).length > 0, 'handles are pairs');
+});
+
+test('paint accepts swatch names; stroke style and blend mode validate', () => {
+  const s = schemaOf('ai_set_item');
+  assert.deepEqual(validate(s, { item: 'a', fill: 'swatch:Brand Gold', dash: [12, 6], cap: 'round', join: 'bevel', blend_mode: 'multiply' }), []);
+  assert.ok(validate(s, { item: 'a', fill: 'swatch:' }).length > 0);
+  assert.ok(validate(s, { item: 'a', cap: 'pointy' }).length > 0);
+  assert.ok(validate(s, { item: 'a', blend_mode: 'add' }).length > 0);
+});
+
+test('structure, library and effect tools require their key arguments', () => {
+  assert.ok(validate(schemaOf('ai_pathfinder'), { items: ['a'], operation: 'unite' }).length > 0, 'needs 2 items');
+  assert.ok(validate(schemaOf('ai_pathfinder'), { items: ['a', 'b'], operation: 'crop' }).length > 0);
+  assert.deepEqual(validate(schemaOf('ai_group'), { action: 'clip', items: ['photo'], mask: 'circle' }), []);
+  assert.deepEqual(validate(schemaOf('ai_layer'), { action: 'update', name: 'FX', locked: true }), []);
+  assert.deepEqual(validate(schemaOf('ai_swatch'), { action: 'add', name: 'Fade', color: GRADIENT }), []);
+  assert.deepEqual(validate(schemaOf('ai_distort'), { item: 'a', effect: 'warp', style: 'flag' }), []);
+  assert.ok(validate(schemaOf('ai_distort'), { item: 'a', effect: 'warp', style: 'zigzag' }).length > 0);
+  assert.equal(applyDefaults(schemaOf('ai_graphic_style'), { action: 'apply' }).merge, true);
+  assert.equal(applyDefaults(schemaOf('ai_trace_image'), {}).expand, true);
+  assert.equal(applyDefaults(schemaOf('ai_export_pdf'), {}).preset, undefined, 'preset depends on cmyk');
+});
+
+test('pucker/bloat bulge point moves away from or toward the centre', () => {
+  const ctx = loadJsx();
+  const out = JSON.parse(JSON.stringify(ctx.__bulgePoint([0, 10], [10, 10], [5, 0], 0.5)));
+  assert.deepEqual(out, [5, 15]);
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.__bulgePoint([0, 10], [10, 10], [5, 0], -0.5))), [5, 5]);
+});
+
+test('extrude side colour is a darker shade; warp settings are clamped', () => {
+  const ctx = loadJsx();
+  assert.equal(ctx.__shade('#ff8000', 0.5), '#804000');
+  const xml = ctx.__warpXml({ style: 'flag', amount: 150, horizontal: 0, vertical: -20, direction: 'vertical' });
+  assert.match(xml, /DeformValue 1 /);
+  assert.match(xml, /DeformStyle 8 /);
+  assert.match(xml, /DeformVert -0.2 /);
+  assert.match(xml, /Rotate 1 /);
+});

@@ -274,8 +274,32 @@ function __makeGradient(spec) {
   return gc;
 }
 
+var __SWATCH_PREFIX = 'swatch:';
+
+/* The colour of a document swatch (solid, spot, gradient or pattern) by name. */
+function __swatchColor(name) {
+  try {
+    return app.activeDocument.swatches.getByName(name).color;
+  } catch (e) {
+    __fail('Swatch not found: "' + name + '". Use ai_swatch with action "list" to see the names.');
+  }
+}
+
+/* "#rrggbb", "swatch:Name" or a gradient spec -> an Illustrator colour. */
 function __makePaint(spec) {
-  return __isGradientSpec(spec) ? __makeGradient(spec) : __makeColor(spec);
+  if (__isGradientSpec(spec)) return __makeGradient(spec);
+  if (spec.indexOf(__SWATCH_PREFIX) === 0) return __swatchColor(spec.substring(__SWATCH_PREFIX.length));
+  return __makeColor(spec);
+}
+
+var __STROKE_CAPS = { butt: 'BUTTENDCAP', round: 'ROUNDENDCAP', square: 'PROJECTINGENDCAP' };
+var __STROKE_JOINS = { miter: 'MITERENDJOIN', round: 'ROUNDENDJOIN', bevel: 'BEVELENDJOIN' };
+
+/* Dash pattern, line caps and corner joins of a path's stroke. */
+function __applyStrokeStyle(path, a) {
+  if (__has(a, 'dash')) path.strokeDashes = a.dash;
+  if (__has(a, 'cap')) path.strokeCap = StrokeCap[__STROKE_CAPS[a.cap]];
+  if (__has(a, 'join')) path.strokeJoin = StrokeJoin[__STROKE_JOINS[a.join]];
 }
 
 /* Rotates only the fill gradient of an item (0 = left->right, 90 = bottom->top, -90 = top->bottom). */
@@ -329,6 +353,7 @@ function __applyPaint(path, a) {
     path.strokeWidth = a.stroke_width;
     if (a.stroke_width === 0) path.stroked = false;
   }
+  __applyStrokeStyle(path, a);
 }
 
 /* Paint of a path/compound path for reporting. */

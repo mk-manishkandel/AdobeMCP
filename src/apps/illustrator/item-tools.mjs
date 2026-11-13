@@ -1,7 +1,9 @@
 /**
  * Item ai_* tools: shapes, images, editing, alignment.
  */
-import { COLOR_PATTERN, artboard, filePath, itemName, itemRef, layer, objectSchema, paint, px, withPaths } from './schemas.mjs';
+import {
+  COLOR_PATTERN, artboard, filePath, itemName, itemRef, layer, objectSchema, paint, px, strokeStyle, vertex, withPaths,
+} from './schemas.mjs';
 
 const effectColor = { type: 'string', pattern: COLOR_PATTERN, description: '"#RRGGBB"' };
 
@@ -10,17 +12,18 @@ const addShape = {
   description:
     'Draw a shape. rectangle / rounded_rectangle / ellipse / polygon / star fill the box x, y, w, h (top-left corner, y down). ' +
     'line goes from (x, y) to (x2, y2) and uses stroke. path draws through vertices [[x, y], ...] (closed: true for a ' +
-    'polygon; x and y are ignored). fill accepts a gradient. Default fill #CCCCCC and no stroke ' +
+    'polygon; x and y are ignored); a vertex {x, y, in: [x, y], out: [x, y]} adds Bezier handles for curves. ' +
+    'fill accepts a gradient or "swatch:<name>". dash / cap / join style the stroke. Default fill #CCCCCC and no stroke ' +
     '(line and open path: stroke #000000, 1 px, no fill).',
   inputSchema: objectSchema(
     {
       shape: { type: 'string', enum: ['rectangle', 'rounded_rectangle', 'ellipse', 'polygon', 'star', 'line', 'path'] },
       vertices: {
         type: 'array',
-        items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
+        items: vertex,
         minItems: 2,
         maxItems: 5000,
-        description: 'For shape "path": points [[x, y], ...] in px from the artboard top-left',
+        description: 'For shape "path": points [[x, y], ...] or {x, y, in, out} in px from the artboard top-left',
       },
       closed: { type: 'boolean', default: false, description: 'For shape "path": close it into a polygon' },
       x: px('Left of the box / line start x'),
@@ -32,6 +35,7 @@ const addShape = {
       fill: paint('Fill colour'),
       stroke: paint('Stroke colour'),
       stroke_width: { type: 'number', minimum: 0, description: 'Stroke width (px)' },
+      ...strokeStyle,
       radius: { type: 'number', minimum: 0, default: 24, description: 'Corner radius for rounded_rectangle (px)' },
       sides: { type: 'integer', minimum: 3, maximum: 100, default: 6, description: 'Polygon sides' },
       points: { type: 'integer', minimum: 3, maximum: 100, default: 5, description: 'Star points' },
@@ -97,6 +101,15 @@ const setItem = {
       fill: paint('Fill colour (paths) or text colour'),
       stroke: paint('Stroke colour (paths)'),
       stroke_width: { type: 'number', minimum: 0, description: 'Stroke width (px, paths)' },
+      ...strokeStyle,
+      blend_mode: {
+        type: 'string',
+        enum: [
+          'normal', 'multiply', 'screen', 'overlay', 'soft_light', 'hard_light', 'color_dodge', 'color_burn',
+          'darken', 'lighten', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity',
+        ],
+        description: 'Transparency blend mode',
+      },
       arrange: { type: 'string', enum: ['bring_to_front', 'bring_forward', 'send_backward', 'send_to_back'] },
       layer: { ...layer, description: 'Move the item to this layer (created if missing)' },
       duplicate: { type: 'boolean', default: false, description: 'Duplicate first and edit the copy' },

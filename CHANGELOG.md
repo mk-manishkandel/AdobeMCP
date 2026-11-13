@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.0 (2026-11-13)
+
+Nine new tools and richer paint, so most of Illustrator's everyday features have a typed tool.
+
+- `ai_group`: group, ungroup, clipping masks.
+- `ai_pathfinder`: unite, minus front, minus back, intersect, exclude, divide.
+- `ai_layer`: list, add, rename, show/hide, lock, reorder, delete (with `delete_items` for non-empty layers).
+- `ai_swatch`, `ai_symbol`, `ai_graphic_style`: document swatches, symbols and graphic styles (styles merge by default
+  so a style like "Drop Shadow" does not erase the item's own fill).
+- `ai_distort`: warp (15 styles), twirl, roughen, pucker/bloat, solid extrusion.
+- `ai_trace_image`: Image Trace to editable vectors.
+- `ai_export_pdf`: print PDFs with presets, bleed, crop marks and CMYK (PDF/X-1a).
+- Paths take Bézier handles; strokes take dash, cap and join; fills take `"swatch:<name>"`; `ai_set_item` takes
+  `blend_mode`.
+- Not possible through scripting, and documented as such: opacity masks, Illustrator's own 3D effect.
+
 ## 1.0.0 (2026-11-13)
 
 Production hardening, plus the tools that real poster work showed were missing.

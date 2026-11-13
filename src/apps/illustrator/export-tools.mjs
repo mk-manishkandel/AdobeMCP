@@ -59,4 +59,26 @@ export async function previewHandler(args, ctx) {
   }
 }
 
-export const exportTools = Object.freeze([exportTool, preview]);
+const exportPdf = {
+  name: 'ai_export_pdf',
+  description:
+    'Export a print-ready PDF: chosen artboards (0-based; default all), an Adobe PDF preset (default ' +
+    '"[High Quality Print]"; "[PDF/X-4:2008]" for printers), bleed and crop marks. cmyk: true converts colours to CMYK ' +
+    'by using the "[PDF/X-1a:2001]" preset. ' +
+    'list_presets: true lists the presets. Illustrator then treats the PDF as the document\'s file (the result says how ' +
+    'to switch back). An existing file is only replaced with overwrite: true.',
+  inputSchema: objectSchema({
+    path: filePath('Output .pdf file'),
+    artboards: { type: 'array', items: { type: 'integer', minimum: 0 }, minItems: 1, maxItems: 1000, description: 'Artboard indices' },
+    preset: { type: 'string', minLength: 1, description: 'Adobe PDF preset; default "[High Quality Print]"' },
+    cmyk: { type: 'boolean', default: false, description: 'Convert colours to CMYK (PDF/X-1a)' },
+    bleed: { type: 'number', minimum: 0, maximum: 72, default: 0, description: 'Bleed on every side (px = pt)' },
+    crop_marks: { type: 'boolean', default: false },
+    list_presets: { type: 'boolean', default: false },
+    overwrite,
+  }),
+  handler: withNoClobber(['path']),
+  timeoutSec: 600,
+};
+
+export const exportTools = Object.freeze([exportTool, preview, exportPdf]);

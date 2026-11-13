@@ -24,11 +24,13 @@ function __eachPath(item, fn) {
 /* Applies {fill, stroke, stroke_width} to text, paths, compound paths or whole groups. */
 function __paintItem(item, a) {
   if (item.typename === 'TextFrame') {
-    if (__has(a, 'stroke') || __has(a, 'stroke_width')) __fail('stroke is for shapes; text takes fill only.');
+    if (__has(a, 'stroke') || __has(a, 'stroke_width') || __has(a, 'dash') || __has(a, 'cap') || __has(a, 'join')) {
+      __fail('stroke settings are for shapes; text takes fill only.');
+    }
     if (__isGradientSpec(a.fill)) {
       __fail('Live text cannot show a gradient. Pass outline: true in the same call to turn the text into shapes first.');
     }
-    __allChars(item).fillColor = __makeColor(a.fill);
+    if (__has(a, 'fill')) __allChars(item).fillColor = __makePaint(a.fill);
     return;
   }
   __eachPath(item, function (p) { __applyPaint(p, a); });

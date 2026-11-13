@@ -135,3 +135,66 @@ function ai_preview(a) {
   else opts.height = Math.min(a.max_size, Math.round(info.h * 4));
   return __exportArtboard(doc, ab, a.path, opts);
 }
+
+/* ---------- print PDF ---------- */
+
+function __pdfPresets() {
+  var out = [];
+  var list = app.PDFPresetsList;
+  for (var i = 0; i < list.length; i++) out.push(list[i]);
+  return out;
+}
+
+/* 0-based artboard indices -> Illustrator's 1-based range string ("1,3"). */
+function __artboardRange(doc, indices) {
+  var parts = [];
+  for (var i = 0; i < indices.length; i++) parts.push(__abIndex(doc, indices[i]) + 1);
+  return parts.join(',');
+}
+
+var __PDF_DEFAULT_PRESET = '[High Quality Print]';
+/* Scripted colour conversion fails in Illustrator ('MRAP'); PDF/X-1a always converts to CMYK. */
+var __PDF_CMYK_PRESET = '[PDF/X-1a:2001]';
+
+function __pdfPreset(a) {
+  if (a.preset) return a.preset;
+  return a.cmyk ? __PDF_CMYK_PRESET : __PDF_DEFAULT_PRESET;
+}
+
+function __printPdfOptions(doc, a, preset) {
+  var known = __pdfPresets();
+  var found = false;
+  for (var i = 0; i < known.length; i++) if (known[i] === preset) found = true;
+  if (!found) __fail('Unknown PDF preset "' + preset + '". Available: ' + known.join(', '));
+  var opts = new PDFSaveOptions();
+  opts.pDFPreset = preset;
+  opts.preserveEditability = false;
+  if (a.artboards && a.artboards.length) opts.artboardRange = __artboardRange(doc, a.artboards);
+  if (a.bleed > 0) opts.bleedOffsetRect = [a.bleed, a.bleed, a.bleed, a.bleed];
+  opts.trimMarks = !!a.crop_marks;
+  return opts;
+}
+
+function ai_export_pdf(a) {
+  if (a.list_presets) return { presets: __pdfPresets() };
+  var doc = __requireDoc();
+  if (!a.path) __fail('path is required (ending in .pdf).');
+  var before = __docPath(doc);
+  var file = new File(a.path);
+  __ensureParentFolder(file);
+  var preset = __pdfPreset(a);
+  if (a.cmyk && a.preset && a.preset !== __PDF_CMYK_PRESET) {
+    __fail('cmyk: true uses the ' + __PDF_CMYK_PRESET + ' preset; leave preset out, or pick a CMYK preset yourself without cmyk.');
+  }
+  doc.saveAs(file, __printPdfOptions(doc, a, preset));
+  return {
+    path: file.fsName,
+    preset: preset,
+    artboards: a.artboards && a.artboards.length ? a.artboards : 'all',
+    cmyk: !!a.cmyk,
+    bleed: a.bleed,
+    crop_marks: !!a.crop_marks,
+    note: 'Illustrator now treats the PDF as this document\'s file' +
+      (before ? '; save with ai_save to ' + before + ' to switch back.' : '.')
+  };
+}

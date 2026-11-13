@@ -106,6 +106,18 @@ function __embed(container, placed) {
   __fail('Embedding succeeded but the embedded image could not be located.');
 }
 
+/* Linked placement (raster, PSD, PDF, AI). SVG cannot be linked: see ai_place_image. */
+function __placeLinked(layer, file, path) {
+  var placed = layer.placedItems.add();
+  try {
+    placed.file = file;
+  } catch (e) {
+    placed.remove();
+    __fail('Illustrator cannot place "' + path + '" (' + e.message + '). Use jpg, png, psd, tif, pdf, ai or svg.');
+  }
+  return placed;
+}
+
 function ai_place_image(a) {
   var doc = __requireDoc();
   var ab = __abIndex(doc, a.artboard);
@@ -113,14 +125,15 @@ function ai_place_image(a) {
   var file = __requireFile(a.path, 'Image');
   if (a.mode !== 'none' && (!__has(a, 'w') || !__has(a, 'h'))) __fail('mode "' + a.mode + '" needs a box: x, y, w, h.');
 
-  var placed = layer.placedItems.add();
-  placed.file = file;
+  var isSvg = /\.svgz?$/i.test(a.path);
+  var placed = isSvg ? layer.groupItems.createFromFile(file) : __placeLinked(layer, file, a.path);
   var source = __fitIntoBox(doc, ab, placed, a);
   var result = placed;
+  var embed = a.embed && !isSvg; /* SVG is imported as editable vector art, always embedded */
   if (a.mode === 'fill') {
     result = __clipToBox(doc, ab, layer, placed, a);
-    if (a.embed) __embed(result, placed);
-  } else if (a.embed) {
+    if (embed) __embed(result, placed);
+  } else if (embed) {
     result = __embed(layer, placed);
   }
   if (a.name) result.name = a.name;

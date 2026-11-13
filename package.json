@@ -11,7 +11,9 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test \"test/**/*.test.mjs\"",
-    "test:coverage": "node --test --experimental-test-coverage \"test/**/*.test.mjs\""
+    "test:coverage": "node --test --experimental-test-coverage \"test/**/*.test.mjs\"",
+    "test:live": "node test/live/live.mjs",
+    "demo": "node scripts/demo-admission.mjs"
   },
   "license": "UNLICENSED"
 }

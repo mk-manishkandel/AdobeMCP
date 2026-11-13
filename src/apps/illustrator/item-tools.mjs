@@ -36,7 +36,7 @@ const addShape = {
 const placeImage = {
   name: 'ai_place_image',
   description:
-    'Place an image (jpg/png/psd/tif/svg/pdf/ai) into the box x, y, w, h. mode "fill" covers the box and crops the rest ' +
+    'Place an image (jpg/png/psd/tif/pdf/ai linked or embedded; svg is imported as editable vector art) into the box x, y, w, h. mode "fill" covers the box and crops the rest ' +
     'with a clipping group (photos); "fit" shows the whole image inside the box (logos); "stretch" distorts to the box; ' +
     '"none" places at natural size with its top-left at (x, y). focus picks which part stays visible (fill) or where ' +
     'it sits (fit). Linked by default; embed=true embeds it into the document.',

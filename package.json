@@ -1,0 +1,17 @@
+{
+  "name": "adobe-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local, zero-dependency MCP server that drives Adobe Illustrator (and later Photoshop) through AppleScript + ExtendScript.",
+  "type": "module",
+  "main": "server.mjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "test:coverage": "node --test --experimental-test-coverage \"test/**/*.test.mjs\""
+  },
+  "license": "UNLICENSED"
+}

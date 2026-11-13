@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createMcpHandler } from '../src/mcp.mjs';
+import { ILLUSTRATOR_TOOLS } from '../src/apps/illustrator/index.mjs';
 import { FAKE_OSASCRIPT, ROOT, SAMPLE_STATE } from './helpers.mjs';
 
 const tools = [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }];
@@ -86,6 +87,7 @@ test('server speaks MCP over stdio end-to-end', async () => {
   const names = list.result.tools.map((t) => t.name);
   assert.ok(names.includes('ai_status') && names.includes('ai_run_script'));
   assert.ok(names.every((n) => n.startsWith('ai_')));
+  assert.equal(names.length, ILLUSTRATOR_TOOLS.length);
 
   const status = await srv.request(3, 'tools/call', { name: 'ai_status', arguments: {} });
   assert.equal(status.result.isError, undefined);
@@ -106,7 +108,7 @@ test('server speaks MCP over stdio end-to-end', async () => {
   // stdout carries only JSON-RPC; logs go to stderr.
   assert.ok(srv.stdoutLines.every((l) => JSON.parse(l).jsonrpc === '2.0'));
   assert.ok(srv.stdoutLines.some((l) => JSON.parse(l).error?.code === -32700));
-  assert.match(srv.getStderr(), /ready: 2 tools/);
+  assert.match(srv.getStderr(), new RegExp(`ready: ${ILLUSTRATOR_TOOLS.length} tools`));
 });
 
 test('server reports bridge failures as tool errors, not crashes', async () => {

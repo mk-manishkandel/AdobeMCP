@@ -1,17 +1,33 @@
 /**
  * Illustrator app definition: target, JSX files and the ai_* tool table.
- * Each tool's JSX implementation is the function of the same name in jsx/illustrator.jsx.
+ * Each tool runs the JSX function of the same name (jsx/illustrator*.jsx)
+ * unless the tool has its own handler.
  */
+import { documentTools } from './document-tools.mjs';
+import { exportTools } from './export-tools.mjs';
+import { itemTools } from './item-tools.mjs';
+import { objectSchema } from './schemas.mjs';
+import { textTools } from './text-tools.mjs';
 
 export const ILLUSTRATOR_BUNDLE_ID = 'com.adobe.illustrator';
+
+export const ILLUSTRATOR_JSX_FILES = Object.freeze([
+  'illustrator.jsx',
+  'illustrator-document.jsx',
+  'illustrator-text.jsx',
+  'illustrator-items.jsx',
+  'illustrator-export.jsx',
+]);
 
 export const ILLUSTRATOR_INSTRUCTIONS = [
   'Adobe Illustrator tools (ai_*).',
   'Units: px (1 px = 1 pt in Illustrator).',
   'Coordinates: x/y are measured from the TOP-LEFT corner of the artboard, y grows DOWNWARD;',
-  'boxes are {x, y, w, h} with (x, y) the top-left corner. Artboards are 0-based; tools default to the active artboard.',
-  'Colours are "#RRGGBB" strings.',
-  'Workflow: ai_status -> ai_new_document/ai_open -> add/edit items -> ai_get_document_info and ai_preview to check -> ai_export.',
+  'boxes are {x, y, w, h} with (x, y) the top-left corner. Artboards are 0-based; create tools default to the active',
+  "artboard, edit tools to the item's own artboard.",
+  'Colours are "#RRGGBB" strings. Items are referenced by the id returned when they are created or listed.',
+  'Workflow: ai_status -> ai_new_document/ai_open -> add/edit items -> ai_preview to look at the result and fix it ->',
+  'ai_export. For Nepali text pick a Devanagari font via ai_list_fonts "devanagari".',
 ].join(' ');
 
 const statusTool = {
@@ -19,7 +35,7 @@ const statusTool = {
   description:
     'Report Illustrator version and every open document (name, path, colour space, artboards with sizes, active artboard). ' +
     'Call this first to check that Illustrator is reachable.',
-  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  inputSchema: objectSchema({}),
   annotations: { readOnlyHint: true },
 };
 
@@ -30,16 +46,21 @@ const runScriptTool = {
     'Return plain objects/arrays/strings/numbers; DOM objects come back as strings. ' +
     'Raw scripts see Illustrator NATIVE document coordinates (y grows UP), not the top-left convention of the other tools. ' +
     'Dialogs are suppressed. Prefer the dedicated ai_* tools when one fits.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      code: { type: 'string', minLength: 1, description: 'ExtendScript source. Example: "app.activeDocument.layers.length"' },
-    },
-    required: ['code'],
-    additionalProperties: false,
-  },
+  inputSchema: objectSchema(
+    { code: { type: 'string', minLength: 1, description: 'ExtendScript source. Example: "app.activeDocument.layers.length"' } },
+    ['code'],
+  ),
   annotations: { destructiveHint: true },
 };
+
+export const ILLUSTRATOR_TOOLS = Object.freeze([
+  statusTool,
+  ...documentTools,
+  ...textTools,
+  ...itemTools,
+  ...exportTools,
+  runScriptTool,
+]);
 
 /** @param {Record<string,string|undefined>} env */
 export function illustratorApp(env = {}) {
@@ -47,8 +68,8 @@ export function illustratorApp(env = {}) {
     id: 'illustrator',
     label: 'Adobe Illustrator',
     target: env.AI_APP || ILLUSTRATOR_BUNDLE_ID,
-    jsxFiles: Object.freeze(['illustrator.jsx']),
+    jsxFiles: ILLUSTRATOR_JSX_FILES,
     instructions: ILLUSTRATOR_INSTRUCTIONS,
-    tools: Object.freeze([statusTool, runScriptTool]),
+    tools: ILLUSTRATOR_TOOLS,
   });
 }

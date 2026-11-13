@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { createFakeGlobals } from './fixtures/fake-illustrator.mjs';
+import { ILLUSTRATOR_JSX_FILES } from '../src/apps/illustrator/index.mjs';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const JSX_DIR = join(ROOT, 'jsx');
@@ -13,7 +14,9 @@ export function readJsx(name) {
 }
 
 /** Loads the given JSX files into a fresh vm context with fake Illustrator globals. */
-export function loadJsx(files = ['common.jsx', 'illustrator.jsx'], state = {}) {
+export const ALL_JSX = Object.freeze(['common.jsx', ...ILLUSTRATOR_JSX_FILES]);
+
+export function loadJsx(files = ALL_JSX, state = {}) {
   const context = vm.createContext(createFakeGlobals(state));
   for (const f of files) vm.runInContext(readJsx(f), context, { filename: f });
   return context;

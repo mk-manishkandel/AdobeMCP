@@ -16,7 +16,7 @@ import {
   toJsLiteral,
 } from '../src/bridge.mjs';
 import { createSerialQueue } from '../src/queue.mjs';
-import { illustratorApp } from '../src/apps/illustrator.mjs';
+import { illustratorApp } from '../src/apps/illustrator/index.mjs';
 import { FAKE_OSASCRIPT, JSX_DIR, SAMPLE_STATE } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'adobe-mcp-test-'));

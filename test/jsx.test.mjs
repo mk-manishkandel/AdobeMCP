@@ -3,7 +3,7 @@ import { readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { toJsLiteral } from '../src/bridge.mjs';
-import { JSX_DIR, SAMPLE_STATE, loadJsx, readJsx, run } from './helpers.mjs';
+import { ALL_JSX, JSX_DIR, SAMPLE_STATE, loadJsx, readJsx, run } from './helpers.mjs';
 
 const JSX_FILES = readdirSync(JSX_DIR).filter((f) => f.endsWith('.jsx'));
 
@@ -23,7 +23,8 @@ const ES3_FORBIDDEN = [
   [/\.\.\.\w/, 'spread'],
   [/\bJSON\./, 'JSON object (not available in ExtendScript)'],
   [/Array\.isArray/, 'Array.isArray'],
-  [/\.forEach\(|\.map\(|\.filter\(|\.indexOf\(/, 'ES5 array method'],
+  [/\.forEach\(|\.map\(|\.filter\(|\.reduce\(|\.some\(|\.every\(/, 'ES5 array method'],
+  [/\.trim\(\)|Object\.keys|Date\.now|\.bind\(/, 'ES5 built-in'],
 ];
 
 for (const file of JSX_FILES) {
@@ -78,7 +79,7 @@ test('__fail produces a user error without line noise', () => {
 });
 
 test('illustrator hooks suppress dialogs during a call and restore afterwards', () => {
-  const ctx = loadJsx(['common.jsx', 'illustrator.jsx']);
+  const ctx = loadJsx(ALL_JSX);
   const during = JSON.parse(run(ctx, '__run(function(){ return [String(app.userInteractionLevel), String(app.coordinateSystem)]; })'));
   assert.deepEqual(during.result, ['UserInteractionLevel.DONTDISPLAYALERTS', 'CoordinateSystem.DOCUMENTCOORDINATESYSTEM']);
   assert.equal(String(run(ctx, 'app.userInteractionLevel')), 'UserInteractionLevel.DISPLAYALERTS');
@@ -86,13 +87,13 @@ test('illustrator hooks suppress dialogs during a call and restore afterwards', 
 });
 
 test('hooks restore settings even when the tool throws', () => {
-  const ctx = loadJsx(['common.jsx', 'illustrator.jsx']);
+  const ctx = loadJsx(ALL_JSX);
   run(ctx, '__run(function(){ throw new Error("boom"); })');
   assert.equal(String(run(ctx, 'app.userInteractionLevel')), 'UserInteractionLevel.DISPLAYALERTS');
 });
 
 test('coordinate helpers flip y relative to the chosen artboard', () => {
-  const ctx = loadJsx(['common.jsx', 'illustrator.jsx'], SAMPLE_STATE);
+  const ctx = loadJsx(ALL_JSX, SAMPLE_STATE);
   // Artboard 1 rect [1200, 1080, 2280, -840]: top-left is (1200, 1080) in AI space.
   assert.deepEqual([...run(ctx, '__toAi(app.activeDocument, 1, 10, 20)')], [1210, 1060]);
   assert.deepEqual({ ...run(ctx, '__fromAi(app.activeDocument, 1, 1210, 1060)') }, { x: 10, y: 20 });
@@ -102,14 +103,14 @@ test('coordinate helpers flip y relative to the chosen artboard', () => {
 });
 
 test('artboard index out of range is a clear user error', () => {
-  const ctx = loadJsx(['common.jsx', 'illustrator.jsx'], SAMPLE_STATE);
+  const ctx = loadJsx(ALL_JSX, SAMPLE_STATE);
   const err = JSON.parse(run(ctx, '__run(function(){ return __abRect(app.activeDocument, 5); })'));
   assert.equal(err.user, true);
   assert.match(err.message, /Artboard 5 does not exist \(document has 2, indices 0-1\)/);
 });
 
 test('ai_status summarises documents and artboards', () => {
-  const ctx = loadJsx(['common.jsx', 'illustrator.jsx'], SAMPLE_STATE);
+  const ctx = loadJsx(ALL_JSX, SAMPLE_STATE);
   const res = JSON.parse(run(ctx, '__run(function(){ return ai_status({}); })'));
   assert.equal(res.ok, true);
   assert.equal(res.result.version, '30.1.0');
@@ -133,7 +134,7 @@ test('ai_status summarises documents and artboards', () => {
 });
 
 test('ai_run_script returns the last expression and reports errors against the caller code', () => {
-  const ctx = loadJsx(['common.jsx', 'illustrator.jsx'], SAMPLE_STATE);
+  const ctx = loadJsx(ALL_JSX, SAMPLE_STATE);
   const ok = JSON.parse(run(ctx, '__run(function(){ return ai_run_script({ code: "var a = 2; ({ v: a * 21 })" }); })'));
   assert.deepEqual(ok, { ok: true, result: { v: 42 } });
   const err = JSON.parse(run(ctx, '__run(function(){ return ai_run_script({ code: "null.x" }); })'));

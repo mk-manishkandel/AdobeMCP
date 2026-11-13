@@ -1,7 +1,6 @@
 /*
- * illustrator.jsx: Illustrator runtime and ai_* tool functions.
- * Loaded after common.jsx on every call. Each ai_xxx(args) receives the
- * validated arguments object and returns a plain JSON-able value.
+ * illustrator.jsx: Illustrator runtime shared by all ai_* tools.
+ * Loaded after common.jsx and before the illustrator-*.jsx tool files.
  *
  * COORDINATES (public contract): px from the TOP-LEFT of an artboard, y DOWN.
  * Illustrator's document space has y UP. The only conversions live in
@@ -62,6 +61,24 @@ function __boxOf(doc, abIndex, bounds) {
   return { x: p.x, y: p.y, w: __round(bounds[2] - bounds[0]), h: __round(bounds[1] - bounds[3]) };
 }
 
+/* Index of the artboard containing the centre of bounds, or -1. */
+function __artboardAt(doc, bounds) {
+  var cx = (bounds[0] + bounds[2]) / 2;
+  var cy = (bounds[1] + bounds[3]) / 2;
+  for (var i = 0; i < doc.artboards.length; i++) {
+    var r = doc.artboards[i].artboardRect;
+    if (cx >= r[0] && cx <= r[2] && cy <= r[1] && cy >= r[3]) return i;
+  }
+  return -1;
+}
+
+/* Artboard used for an existing item: explicit index, else the item's own artboard, else active. */
+function __itemArtboard(doc, item, explicit) {
+  if (explicit !== undefined && explicit !== null) return __abIndex(doc, explicit);
+  var found = __artboardAt(doc, __bounds(item));
+  return found >= 0 ? found : doc.artboards.getActiveArtboardIndex();
+}
+
 function __artboardInfo(doc, i) {
   var ab = doc.artboards[i];
   var r = ab.artboardRect;
@@ -93,6 +110,240 @@ function __docSummary(doc, index) {
     activeArtboard: doc.artboards.getActiveArtboardIndex(),
     artboards: artboards
   };
+}
+
+/* ---------- layers ---------- */
+
+function __findLayer(doc, name) {
+  for (var i = 0; i < doc.layers.length; i++) if (doc.layers[i].name === name) return doc.layers[i];
+  return null;
+}
+
+function __usableLayer(layer) {
+  return layer && !layer.locked && layer.visible;
+}
+
+/* Layer to create items in: named (created if missing), else the active or first usable layer. */
+function __targetLayer(doc, name) {
+  if (name) {
+    var named = __findLayer(doc, name);
+    if (!named) {
+      named = doc.layers.add();
+      named.name = name;
+    }
+    if (named.locked || !named.visible) __fail('Layer "' + name + '" is locked or hidden. Unlock/show it or pick another layer.');
+    return named;
+  }
+  if (__usableLayer(doc.activeLayer)) return doc.activeLayer;
+  for (var i = 0; i < doc.layers.length; i++) if (__usableLayer(doc.layers[i])) return doc.layers[i];
+  var created = doc.layers.add();
+  created.name = 'Content';
+  return created;
+}
+
+/* ---------- items ---------- */
+
+var __ITEM_TYPES = {
+  TextFrame: 'text', PathItem: 'path', CompoundPathItem: 'compound_path', GroupItem: 'group',
+  PlacedItem: 'image', RasterItem: 'image', SymbolItem: 'symbol', MeshItem: 'mesh',
+  PluginItem: 'plugin', GraphItem: 'graph', LegacyTextItem: 'legacy_text'
+};
+
+function __typeOf(item) {
+  return __ITEM_TYPES[item.typename] || String(item.typename).toLowerCase();
+}
+
+/* getPageItemFromUuid returns a phantom empty GroupItem for linked PlacedItems
+   (Illustrator 30 quirk), so suspicious hits are confirmed by scanning. */
+function __findByUuid(doc, uuid) {
+  var hit = null;
+  try {
+    hit = doc.getPageItemFromUuid(uuid);
+  } catch (e) {
+    hit = null;
+  }
+  if (hit && !(hit.typename === 'GroupItem' && hit.pageItems.length === 0)) return hit;
+  var all = doc.pageItems;
+  for (var i = 0; i < all.length; i++) if (all[i].uuid === uuid) return all[i];
+  return hit;
+}
+
+/* Finds an item by uuid (all digits) or by unique name. */
+function __findItem(doc, ref) {
+  if (ref === undefined || ref === null || ref === '') __fail('An item reference (id or name) is required.');
+  var s = String(ref);
+  if (/^\d+$/.test(s)) {
+    var byId = __findByUuid(doc, s);
+    if (byId) return byId;
+  }
+  var matches = [];
+  var all = doc.pageItems;
+  for (var i = 0; i < all.length; i++) if (all[i].name === s) matches.push(all[i]);
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) {
+    var ids = [];
+    for (var j = 0; j < matches.length && j < 10; j++) ids.push(matches[j].uuid);
+    __fail('Name "' + s + '" matches ' + matches.length + ' items; use an id instead (' + ids.join(', ') + ').');
+  }
+  __fail('Item not found: "' + s + '". Use ai_get_document_info to list item ids and names.');
+}
+
+function __clipPath(group) {
+  for (var i = 0; i < group.pageItems.length; i++) {
+    var it = group.pageItems[i];
+    if (it.typename === 'PathItem' && it.clipping) return it;
+    if (it.typename === 'CompoundPathItem' && it.pathItems.length && it.pathItems[0].clipping) return it;
+  }
+  return null;
+}
+
+/* Visible geometric bounds: a clipping group is only as big as its clipping path. */
+function __bounds(item) {
+  if (item.typename === 'GroupItem' && item.clipped) {
+    var clip = __clipPath(item);
+    if (clip) return clip.geometricBounds;
+  }
+  return item.geometricBounds;
+}
+
+/* Moves item so its visible top-left is at public (x, y) on artboard ab. */
+function __moveTo(doc, ab, item, x, y) {
+  var b = __bounds(item);
+  var target = __toAi(doc, ab, x, y);
+  item.translate(target[0] - b[0], target[1] - b[1]);
+}
+
+/* Resizes item's visible bounds to w x h (px), keeping its top-left. */
+function __resizeTo(item, w, h) {
+  var b = __bounds(item);
+  var cw = b[2] - b[0];
+  var ch = b[1] - b[3];
+  if (cw <= 0 || ch <= 0) __fail('Item has zero width or height and cannot be resized.');
+  var sx = (w / cw) * 100;
+  var sy = (h / ch) * 100;
+  item.resize(sx, sy, true, true, true, true, Math.sqrt(sx * sy), Transformation.TOPLEFT);
+  item.translate(b[0] - __bounds(item)[0], b[1] - __bounds(item)[1]);
+}
+
+/* ---------- colours ---------- */
+
+function __makeColor(hex) {
+  var c = __parseHex(hex);
+  var col = new RGBColor();
+  col.red = c.r;
+  col.green = c.g;
+  col.blue = c.b;
+  return col;
+}
+
+function __isNone(value) {
+  return String(value).toLowerCase() === 'none';
+}
+
+function __cmykToHex(c) {
+  var k = 1 - c.black / 100;
+  return __toHex(255 * (1 - c.cyan / 100) * k, 255 * (1 - c.magenta / 100) * k, 255 * (1 - c.yellow / 100) * k);
+}
+
+/* Any Illustrator colour -> "#rrggbb", "none", or a descriptive string. */
+function __colorHex(color) {
+  if (!color) return null;
+  switch (color.typename) {
+    case 'RGBColor': return __toHex(color.red, color.green, color.blue);
+    case 'CMYKColor': return __cmykToHex(color);
+    case 'GrayColor': return __toHex(255 * (1 - color.gray / 100), 255 * (1 - color.gray / 100), 255 * (1 - color.gray / 100));
+    case 'SpotColor': return __colorHex(color.spot.color);
+    case 'NoColor': return 'none';
+    case 'GradientColor': return 'gradient';
+    case 'PatternColor': return 'pattern';
+    default: return String(color.typename);
+  }
+}
+
+/* Applies fill/stroke settings from args {fill, stroke, stroke_width} to a path item. */
+function __applyPaint(path, a) {
+  if (__has(a, 'fill')) {
+    if (__isNone(a.fill)) {
+      path.filled = false;
+    } else {
+      path.filled = true;
+      path.fillColor = __makeColor(a.fill);
+    }
+  }
+  if (__has(a, 'stroke')) {
+    if (__isNone(a.stroke)) {
+      path.stroked = false;
+    } else {
+      path.stroked = true;
+      path.strokeColor = __makeColor(a.stroke);
+      if (!__has(a, 'stroke_width') && path.strokeWidth <= 0) path.strokeWidth = 1;
+    }
+  }
+  if (__has(a, 'stroke_width')) {
+    path.strokeWidth = a.stroke_width;
+    if (a.stroke_width === 0) path.stroked = false;
+  }
+}
+
+/* Paint of a path/compound path for reporting. */
+function __paintInfo(item) {
+  var p = item.typename === 'CompoundPathItem' && item.pathItems.length ? item.pathItems[0] : item;
+  return {
+    fill: p.filled ? __colorHex(p.fillColor) : 'none',
+    stroke: p.stroked ? __colorHex(p.strokeColor) : 'none',
+    stroke_width: p.stroked ? __round(p.strokeWidth) : 0
+  };
+}
+
+/* ---------- item reporting ---------- */
+
+function __truncate(s, max) {
+  s = String(s);
+  return s.length > max ? s.substr(0, max) + '…' : s;
+}
+
+function __imageInfo(item, out) {
+  out.embedded = item.typename === 'RasterItem' ? true : false;
+  try {
+    out.file = item.file.fsName;
+  } catch (e) {
+    out.file = null;
+  }
+}
+
+function __groupInfo(doc, ab, item, out, depth) {
+  out.clipped = item.clipped;
+  out.children_count = item.pageItems.length;
+  if (depth >= 2) return;
+  var kids = [];
+  for (var i = 0; i < item.pageItems.length && i < 50; i++) kids.push(__itemInfo(doc, item.pageItems[i], ab, depth + 1));
+  out.children = kids;
+}
+
+/* Describes an item. abIndex null -> item's own artboard. */
+function __itemInfo(doc, item, abIndex, depth) {
+  depth = depth || 0;
+  var b = __bounds(item);
+  var own = __artboardAt(doc, b);
+  var ab = (abIndex === null || abIndex === undefined) ? (own >= 0 ? own : doc.artboards.getActiveArtboardIndex()) : abIndex;
+  var box = __boxOf(doc, ab, b);
+  var out = {
+    id: item.uuid, name: item.name, type: __typeOf(item), artboard: own >= 0 ? own : null,
+    x: box.x, y: box.y, w: box.w, h: box.h, opacity: __round(item.opacity), hidden: item.hidden, locked: item.locked
+  };
+  if (depth === 0) out.layer = item.layer.name;
+  var t = item.typename;
+  if (t === 'TextFrame') __mergeInto(out, __textInfo(item));
+  else if (t === 'PathItem' || t === 'CompoundPathItem') __mergeInto(out, __paintInfo(item));
+  else if (t === 'PlacedItem' || t === 'RasterItem') __imageInfo(item, out);
+  else if (t === 'GroupItem') __groupInfo(doc, ab, item, out, depth);
+  if (t === 'PathItem' && item.clipping) out.clipping = true;
+  return out;
+}
+
+function __mergeInto(target, src) {
+  for (var k in src) if (src.hasOwnProperty(k)) target[k] = src[k];
+  return target;
 }
 
 /* ---------- tools ---------- */

@@ -8,6 +8,7 @@
  *   ADOBE_MCP_OSASCRIPT    osascript binary (tests point this at a fake .mjs)
  *   ADOBE_MCP_KEEP_TMP=1   keep composed .jsx files in the temp dir for debugging
  *   ADOBE_MCP_DEBUG=1      verbose stderr logging
+ *   ADOBE_MCP_ALLOW_RUN_SCRIPT=0  hide ai_run_script (typed tools only)
  * stdout is reserved for JSON-RPC; all logs go to stderr.
  */
 import { readFileSync } from 'node:fs';
@@ -55,7 +56,30 @@ export function startServer(env = process.env) {
   return serveStdio(handle, { log });
 }
 
+/** Longest we wait for an in-flight Illustrator call after a shutdown signal. */
+const SHUTDOWN_GRACE_MS = 10_000;
+
+/**
+ * Process wiring for production: stop reading on SIGINT/SIGTERM and exit once
+ * in-flight calls finish (or the grace period ends); log stray errors to stderr.
+ */
+function installProcessHandlers(log) {
+  const shutdown = (signal) => {
+    log('info', `${signal} received, shutting down`);
+    process.stdin.destroy();
+    setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
+  };
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('unhandledRejection', (reason) => log('error', 'unhandled rejection:', reason?.stack || reason));
+  process.on('uncaughtException', (err) => {
+    log('error', 'uncaught exception, exiting:', err?.stack || err);
+    process.exit(1);
+  });
+}
+
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
+  installProcessHandlers(createLogger(process.env.ADOBE_MCP_DEBUG === '1'));
   startServer().then(() => process.exit(0));
 }

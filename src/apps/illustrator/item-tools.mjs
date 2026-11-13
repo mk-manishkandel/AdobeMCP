@@ -1,16 +1,28 @@
 /**
  * Item ai_* tools: shapes, images, editing, alignment.
  */
-import { artboard, filePath, itemName, itemRef, layer, objectSchema, paint, px, withPaths } from './schemas.mjs';
+import { COLOR_PATTERN, artboard, filePath, itemName, itemRef, layer, objectSchema, paint, px, withPaths } from './schemas.mjs';
+
+const effectColor = { type: 'string', pattern: COLOR_PATTERN, description: '"#RRGGBB"' };
 
 const addShape = {
   name: 'ai_add_shape',
   description:
     'Draw a shape. rectangle / rounded_rectangle / ellipse / polygon / star fill the box x, y, w, h (top-left corner, y down). ' +
-    'line goes from (x, y) to (x2, y2) and uses stroke. Default fill #CCCCCC and no stroke (line: stroke #000000, 1 px).',
+    'line goes from (x, y) to (x2, y2) and uses stroke. path draws through vertices [[x, y], ...] (closed: true for a ' +
+    'polygon; x and y are ignored). fill accepts a gradient. Default fill #CCCCCC and no stroke ' +
+    '(line and open path: stroke #000000, 1 px, no fill).',
   inputSchema: objectSchema(
     {
-      shape: { type: 'string', enum: ['rectangle', 'rounded_rectangle', 'ellipse', 'polygon', 'star', 'line'] },
+      shape: { type: 'string', enum: ['rectangle', 'rounded_rectangle', 'ellipse', 'polygon', 'star', 'line', 'path'] },
+      vertices: {
+        type: 'array',
+        items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
+        minItems: 2,
+        maxItems: 5000,
+        description: 'For shape "path": points [[x, y], ...] in px from the artboard top-left',
+      },
+      closed: { type: 'boolean', default: false, description: 'For shape "path": close it into a polygon' },
       x: px('Left of the box / line start x'),
       y: px('Top of the box / line start y'),
       w: { type: 'number', exclusiveMinimum: 0, description: 'Box width (px)' },
@@ -29,7 +41,7 @@ const addShape = {
       layer,
       name: itemName,
     },
-    ['shape', 'x', 'y'],
+    ['shape'],
   ),
 };
 
@@ -66,7 +78,9 @@ const setItem = {
     'rotate (degrees, positive = counter-clockwise), opacity, hide, lock, rename, recolour (fill/stroke for paths, fill for text), ' +
     'arrange (z-order), move to a layer, duplicate (edits then apply to the copy; to_artboard puts the copy at the same ' +
     'relative position on another artboard), or delete. Coordinates are relative to the item\'s own artboard unless artboard is given. ' +
-    'Locked items are unlocked for the edit and re-locked. Returns the (new) item.',
+    'fill/stroke accept gradients and also work on whole groups. outline turns text into one shape (needed for a gradient ' +
+    'on text). glow / shadow add a blurred copy behind the item (ids returned as glow_id / shadow_id); blur blurs the item. ' +
+    'Order: duplicate, outline, edits, effects. Locked items are unlocked for the edit and re-locked. Returns the (new) item.',
   inputSchema: objectSchema(
     {
       item: itemRef,
@@ -88,6 +102,30 @@ const setItem = {
       duplicate: { type: 'boolean', default: false, description: 'Duplicate first and edit the copy' },
       to_artboard: { type: 'integer', minimum: 0, description: 'With duplicate: artboard to put the copy on (same relative position)' },
       delete: { type: 'boolean', default: false, description: 'Delete the item (other edits are ignored)' },
+      outline: { type: 'boolean', default: false, description: 'Text only: convert to a single outlined shape first' },
+      glow: {
+        type: 'object',
+        properties: {
+          radius: { type: 'number', minimum: 0, maximum: 250, default: 12, description: 'Blur radius (px)' },
+          opacity: { type: 'number', minimum: 0, maximum: 100, default: 70 },
+          color: { ...effectColor, description: 'Glow colour; default: the item\'s own colours' },
+        },
+        additionalProperties: false,
+        description: 'Soft glow behind the item',
+      },
+      shadow: {
+        type: 'object',
+        properties: {
+          x: { type: 'number', default: 0, description: 'Offset right (px)' },
+          y: { type: 'number', default: 8, description: 'Offset down (px)' },
+          blur: { type: 'number', minimum: 0, maximum: 250, default: 12, description: 'Blur radius (px)' },
+          opacity: { type: 'number', minimum: 0, maximum: 100, default: 40 },
+          color: { ...effectColor, default: '#000000' },
+        },
+        additionalProperties: false,
+        description: 'Drop shadow behind the item',
+      },
+      blur: { type: 'number', minimum: 0, maximum: 250, description: 'Gaussian blur radius applied to the item itself (px)' },
       artboard: artboard("Default: the item's own artboard."),
     },
     ['item'],

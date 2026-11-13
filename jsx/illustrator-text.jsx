@@ -99,9 +99,52 @@ function __styleText(tf, a) {
   }
   if (__has(a, 'all_caps')) __allChars(tf).capitalization = a.all_caps ? FontCapsOption.ALLCAPS : FontCapsOption.NORMALCAPS;
   if (__has(a, 'align')) __allParas(tf).justification = __justification(a.align);
+  if (a.runs && a.runs.length) __applyRuns(tf, a.runs);
   if (__INDIC_RE.test(tf.contents)) {
     /* Devanagari and other Indic scripts need the World-Ready composer to shape correctly. */
     __allParas(tf).composerEngine = ComposerEngineType.optycaComposer;
+  }
+}
+
+/* Character ranges [start, length] a run refers to, in tf.contents (line breaks count as one). */
+function __runRanges(text, run) {
+  var out = [];
+  if (__has(run, 'match')) {
+    var from = 0;
+    var idx = text.indexOf(run.match, from);
+    while (idx >= 0) {
+      out.push([idx, run.match.length]);
+      if (run.occurrence === 'first') break;
+      from = idx + run.match.length;
+      idx = text.indexOf(run.match, from);
+    }
+    if (!out.length) __fail('Text run "' + run.match + '" was not found in the text.');
+    return out;
+  }
+  if (!__has(run, 'start')) __fail('Each run needs match, or start (and optionally length).');
+  var len = __pick(run, 'length', text.length - run.start);
+  if (run.start + len > text.length) __fail('Run ' + run.start + '+' + len + ' is past the end of the text (' + text.length + ' characters).');
+  out.push([run.start, len]);
+  return out;
+}
+
+/* Styles parts of a text frame (colour, font, size, tracking). Attributes are fetched fresh per character. */
+function __applyRuns(tf, runs) {
+  var text = tf.contents;
+  for (var r = 0; r < runs.length; r++) {
+    var run = runs[r];
+    var font = __has(run, 'font') ? __font(run.font) : null;
+    var color = __has(run, 'color') ? __makeColor(run.color) : null;
+    var ranges = __runRanges(text, run);
+    for (var k = 0; k < ranges.length; k++) {
+      for (var i = ranges[k][0]; i < ranges[k][0] + ranges[k][1]; i++) {
+        var ca = tf.characters[i].characterAttributes;
+        if (font) ca.textFont = font;
+        if (color) ca.fillColor = color;
+        if (__has(run, 'size')) ca.size = run.size;
+        if (__has(run, 'tracking')) ca.tracking = run.tracking;
+      }
+    }
   }
 }
 

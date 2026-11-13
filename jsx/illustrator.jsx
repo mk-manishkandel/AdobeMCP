@@ -247,7 +247,42 @@ function __makeColor(hex) {
 }
 
 function __isNone(value) {
-  return String(value).toLowerCase() === 'none';
+  return typeof value === 'string' && value.toLowerCase() === 'none';
+}
+
+/* A paint spec is "#rrggbb", "none", or a gradient object {type, angle, stops}. */
+function __isGradientSpec(spec) {
+  return spec !== null && typeof spec === 'object';
+}
+
+/* Builds a GradientColor in the active document from {type, stops:[{color, position, opacity}]}. */
+function __makeGradient(spec) {
+  var stops = spec.stops;
+  if (!stops || stops.length < 2) __fail('A gradient needs at least 2 stops.');
+  var g = app.activeDocument.gradients.add();
+  g.type = spec.type === 'radial' ? GradientType.RADIAL : GradientType.LINEAR;
+  while (g.gradientStops.length < stops.length) g.gradientStops.add();
+  for (var i = 0; i < stops.length; i++) {
+    var s = g.gradientStops[i];
+    s.rampPoint = __pick(stops[i], 'position', (100 * i) / (stops.length - 1));
+    s.midPoint = 50;
+    s.color = __makeColor(stops[i].color);
+    s.opacity = __pick(stops[i], 'opacity', 100);
+  }
+  var gc = new GradientColor();
+  gc.gradient = g;
+  return gc;
+}
+
+function __makePaint(spec) {
+  return __isGradientSpec(spec) ? __makeGradient(spec) : __makeColor(spec);
+}
+
+/* Rotates only the fill gradient of an item (0 = left->right, 90 = bottom->top, -90 = top->bottom). */
+function __gradientAngle(item, spec) {
+  if (__isGradientSpec(spec) && spec.type !== 'radial' && spec.angle) {
+    item.rotate(spec.angle, false, false, true, false, Transformation.CENTER);
+  }
 }
 
 function __cmykToHex(c) {
@@ -270,14 +305,15 @@ function __colorHex(color) {
   }
 }
 
-/* Applies fill/stroke settings from args {fill, stroke, stroke_width} to a path item. */
+/* Applies fill/stroke settings from args {fill, stroke, stroke_width} to a path item.
+   Gradient angles are applied by the caller (once per item, see __gradientAngle). */
 function __applyPaint(path, a) {
   if (__has(a, 'fill')) {
     if (__isNone(a.fill)) {
       path.filled = false;
     } else {
       path.filled = true;
-      path.fillColor = __makeColor(a.fill);
+      path.fillColor = __makePaint(a.fill);
     }
   }
   if (__has(a, 'stroke')) {
@@ -285,7 +321,7 @@ function __applyPaint(path, a) {
       path.stroked = false;
     } else {
       path.stroked = true;
-      path.strokeColor = __makeColor(a.stroke);
+      path.strokeColor = __makePaint(a.stroke);
       if (!__has(a, 'stroke_width') && path.strokeWidth <= 0) path.strokeWidth = 1;
     }
   }

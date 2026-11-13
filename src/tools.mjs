@@ -2,7 +2,8 @@
  * Tool registry: turns per-app tool tables into one `callTool` for the MCP layer.
  *
  * A tool definition is
- *   { name, description, inputSchema, annotations?, handler?(args, ctx) }
+ *   { name, description, inputSchema, annotations?, timeoutSec?, handler?(args, ctx) }
+ * timeoutSec shortens the AppleEvent timeout for quick tools (never above the global limit).
  * Without a handler, the tool runs the JSX function of the same name and the
  * result is returned as pretty JSON text. A handler may return MCP content
  * blocks itself (e.g. images).
@@ -45,7 +46,7 @@ export function createToolRunner({ apps, bridge, log = () => {} }) {
   const index = indexTools(apps);
   const tools = [...index.values()].map(({ tool }) => tool);
 
-  async function callTool(name, rawArgs) {
+  async function callTool(name, rawArgs, { signal } = {}) {
     const entry = index.get(name);
     if (!entry) throw new RpcError(RpcCodes.INVALID_PARAMS, `Unknown tool: ${name}`);
     const { tool, app } = entry;
@@ -58,18 +59,22 @@ export function createToolRunner({ apps, bridge, log = () => {} }) {
       tool,
       app,
       log,
+      signal,
       tmpDir: bridge.tmpDir,
-      call: (fnName, fnArgs) => bridge.call(app, fnName, fnArgs),
+      call: (fnName, fnArgs) => bridge.call(app, fnName, fnArgs, { signal, timeoutSec: tool.timeoutSec }),
     });
+    const started = Date.now();
     try {
       const content = await (tool.handler || defaultHandler)(args, ctx);
+      log('info', `${name} ok ${Date.now() - started} ms`);
       return { content };
     } catch (err) {
+      const ms = Date.now() - started;
       if (err instanceof BridgeError) {
-        log('warn', `${name} failed [${err.code}]: ${err.message}`);
+        log('warn', `${name} failed [${err.code}] after ${ms} ms: ${err.message}`);
         return errorResult(err.message);
       }
-      log('error', `${name} crashed:`, err?.stack || err);
+      log('error', `${name} crashed after ${ms} ms:`, err?.stack || err);
       return errorResult(`${name} failed unexpectedly: ${err?.message || err}`);
     }
   }

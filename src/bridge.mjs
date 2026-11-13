@@ -8,7 +8,7 @@
  */
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BridgeError, ErrorCodes } from './errors.mjs';
@@ -21,6 +21,8 @@ const LOADER_ERROR_PREFIX = '__ADOBE_MCP_LOADER_ERROR__';
 const FN_NAME_RE = /^[a-z][a-z0-9_]*$/;
 const BUNDLE_ID_RE = /^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
 const APP_NAME_RE = /^[\w .()-]+$/;
+const TMP_FILE_MODE = 0o600;
+const STALE_TMP_MS = 24 * 3600 * 1000;
 
 /** ExtendScript loader, run via `do javascript … with arguments {path}`. No double quotes or backslashes. */
 export const LOADER = [
@@ -168,6 +170,32 @@ function runOsascript(command, args, timeoutMs) {
 }
 
 /**
+ * Deletes composed scripts (*.jsx) older than maxAgeMs left behind by crashed
+ * runs. Returns how many were removed; a missing directory counts as zero.
+ */
+export async function sweepStaleTmp(dir, maxAgeMs = STALE_TMP_MS) {
+  let names;
+  try {
+    names = await readdir(dir);
+  } catch {
+    return 0;
+  }
+  const cutoff = Date.now() - maxAgeMs;
+  let removed = 0;
+  for (const name of names.filter((n) => n.endsWith('.jsx'))) {
+    const file = join(dir, name);
+    const info = await stat(file).catch(() => null);
+    if (info && info.mtimeMs < cutoff && (await unlink(file).then(() => true, () => false))) removed += 1;
+  }
+  return removed;
+}
+
+/** Effective AppleEvent timeout: the tool's own, never above the global limit. */
+function effectiveTimeout(globalSec, requestedSec) {
+  return Number.isFinite(requestedSec) && requestedSec > 0 ? Math.min(requestedSec, globalSec) : globalSec;
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.jsxDir           folder holding common.jsx and the per-app .jsx files
  *                                      (an app is {label, target, jsxFiles: ['illustrator.jsx', …]})
@@ -186,6 +214,10 @@ export function createBridge({
   log = () => {},
 }) {
   const queue = createSerialQueue();
+  sweepStaleTmp(tmpDir).then(
+    (n) => n && log('info', `removed ${n} stale temp script(s) from ${tmpDir}`),
+    () => {},
+  );
 
   async function loadSources(app) {
     const files = ['common.jsx', ...app.jsxFiles];
@@ -193,22 +225,24 @@ export function createBridge({
     return files.map((file, i) => ({ file, src: texts[i] }));
   }
 
-  async function execute(app, fnName, args) {
+  async function execute(app, fnName, args, { signal, timeoutSec: requested } = {}) {
+    if (signal?.aborted) throw new BridgeError(ErrorCodes.CANCELLED, `${fnName} was cancelled before it started.`);
+    const callTimeout = effectiveTimeout(timeoutSec, requested);
     const sources = await loadSources(app);
     const { source, segments } = buildScript({ sources, fnName, args });
     await mkdir(tmpDir, { recursive: true });
     const file = join(tmpDir, `${fnName}-${randomUUID()}.jsx`);
-    await writeFile(file, `﻿${source}`, 'utf8');
+    await writeFile(file, `﻿${source}`, { encoding: 'utf8', mode: TMP_FILE_MODE });
 
     const started = Date.now();
     try {
-      const osaArgs = buildOsascriptArgs(app.target, timeoutSec, file);
-      const { error, stdout, stderr } = await runOsascript(osascript, osaArgs, (timeoutSec + KILL_GRACE_SEC) * 1000);
+      const osaArgs = buildOsascriptArgs(app.target, callTimeout, file);
+      const { error, stdout, stderr } = await runOsascript(osascript, osaArgs, (callTimeout + KILL_GRACE_SEC) * 1000);
       log('debug', `${fnName} took ${Date.now() - started} ms`);
       if (error) {
         throw classifyOsascriptError(
           { stderr: stderr || error.message, killed: error.killed, code: error.code },
-          { appLabel: app.label, target: app.target, timeoutSec },
+          { appLabel: app.label, target: app.target, timeoutSec: callTimeout },
         );
       }
       return parseScriptOutput(stdout, segments, app.label);
@@ -219,8 +253,11 @@ export function createBridge({
 
   return Object.freeze({
     tmpDir,
-    /** Runs `fnName(args)` inside the app. Calls are serialised. */
-    call: (app, fnName, args = {}) => queue.run(() => execute(app, fnName, args)),
+    /**
+     * Runs `fnName(args)` inside the app. Calls are serialised. opts.signal skips
+     * the call if it is aborted before its turn; opts.timeoutSec shortens the timeout.
+     */
+    call: (app, fnName, args = {}, opts = {}) => queue.run(() => execute(app, fnName, args, opts)),
     get queueSize() {
       return queue.size;
     },

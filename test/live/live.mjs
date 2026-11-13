@@ -134,6 +134,38 @@ async function exportsAndFiles(c) {
   await c.must('ai_close', {});
 }
 
+async function capabilities(c) {
+  console.log('gradients, effects, paths, runs, copy');
+  await c.must('ai_new_document', { width: 800, height: 800, background: '#101020', name: 'LiveSource' });
+  await c.must('ai_add_shape', { shape: 'ellipse', x: 300, y: 300, w: 120, h: 80, fill: '#FFC20E', name: 'Logo' });
+  await c.must('ai_new_document', { width: 1080, height: 1080, background: '#05060F', name: 'LiveCaps' });
+  const grad = { type: 'linear', angle: -90, stops: [{ color: '#FF2BD6', position: 0 }, { color: '#00E5FF', position: 100 }] };
+  const g = await c.must('ai_add_shape', { shape: 'rectangle', x: 60, y: 60, w: 400, h: 200, fill: grad, name: 'GradRect' });
+  check('gradient fill on shape', g.fill === 'gradient', JSON.stringify(g));
+  const tri = await c.must('ai_add_shape', { shape: 'path', vertices: [[600, 60], [700, 260], [500, 260]], closed: true, fill: '#00E5FF', name: 'Tri' });
+  check('closed path box', near(tri.x, 500) && near(tri.y, 60) && near(tri.w, 200) && near(tri.h, 200), JSON.stringify(tri));
+  const open = await c.must('ai_add_shape', { shape: 'path', vertices: [[60, 400], [300, 450]], stroke: '#FFFFFF', stroke_width: 4, name: 'Open' });
+  check('open path uses stroke', open.stroke === '#ffffff' && open.fill === 'none', JSON.stringify(open));
+  await c.must('ai_add_text', { text: 'NEON', x: 60, y: 500, size: 120, color: '#FFFFFF', font: 'AvenirNext-Heavy', name: 'Neon' });
+  const live = await c.callTool('ai_set_item', { item: 'Neon', fill: grad });
+  check('gradient on live text explains outline', live.isError && /outline: true/.test(live.text), live.text);
+  const out = await c.must('ai_set_item', { item: 'Neon', outline: true, fill: grad, glow: { color: '#FF2BD6', radius: 16 } });
+  check('outlined text takes gradient + glow', out.fill === 'gradient' && out.name === 'Neon' && typeof out.glow_id === 'string', JSON.stringify(out));
+  const sh = await c.must('ai_set_item', { item: 'GradRect', shadow: { x: 6, y: 10 }, blur: 0 });
+  check('shadow helper created', typeof sh.shadow_id === 'string', JSON.stringify(sh));
+  const names = (await c.must('ai_get_document_info', {})).items.map((i) => i.name);
+  check('effect copies are named', names.includes('Neon glow') && names.includes('GradRect shadow'), names.join(','));
+  const runs = await c.must('ai_add_text', { text: 'GO V5', x: 60, y: 760, size: 60, color: '#FFFFFF', font: 'AvenirNext-Bold', runs: [{ start: 0, length: 2, color: '#FF0000' }, { match: 'V5', size: 90 }], name: 'Runs' });
+  check('text runs restyle parts', runs.color === '#ff0000' && runs.h > 70, JSON.stringify(runs));
+  const cp = await c.must('ai_copy_items', { from_document: 'LiveSource', items: ['Logo'], x: 40, y: 900 });
+  const logo = cp.items[0];
+  check('copy_items from another document', near(logo.x, 40) && near(logo.y, 900) && near(logo.w, 120) && logo.fill === '#ffc20e', JSON.stringify(cp));
+  const sw = await c.must('ai_open', { document: 'LiveSource' });
+  check('ai_open switches to an open document', sw.name === 'LiveSource', sw.name);
+  await c.must('ai_close', {});
+  await c.must('ai_close', { document: 'LiveCaps' });
+}
+
 async function main() {
   const c = await startClient();
   try {
@@ -143,6 +175,7 @@ async function main() {
     await textEdits(c);
     await itemEdits(c);
     await exportsAndFiles(c);
+    await capabilities(c);
     const cm = await c.must('ai_new_document', { width: 595, height: 842, color_mode: 'cmyk' });
     check('cmyk document', cm.colorSpace === 'cmyk');
     await c.must('ai_close', {});

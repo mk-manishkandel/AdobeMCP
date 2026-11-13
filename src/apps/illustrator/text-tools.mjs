@@ -17,6 +17,27 @@ const styleProps = {
   tracking: { type: 'integer', minimum: -1000, maximum: 10000, description: 'Letter spacing in 1/1000 em (0 = normal, 100 = wide)' },
   leading: { type: 'number', minimum: 0, description: 'Line height (px). Omit for automatic (120%).' },
   all_caps: { type: 'boolean', description: 'Display as ALL CAPS without changing the text' },
+  runs: {
+    type: 'array',
+    maxItems: 200,
+    description:
+      'Style parts of the text, applied after the overall style: e.g. [{"match":"HACKATHON","color":"#FFC20E"}]. ' +
+      'Pick the part by match (every occurrence, or occurrence "first") or by start/length (characters, line breaks count as 1).',
+    items: {
+      type: 'object',
+      properties: {
+        match: { type: 'string', minLength: 1 },
+        occurrence: { type: 'string', enum: ['all', 'first'], default: 'all' },
+        start: { type: 'integer', minimum: 0 },
+        length: { type: 'integer', minimum: 1 },
+        color: color('Colour of this part'),
+        font: { type: 'string', minLength: 1, description: 'PostScript font name' },
+        size: { type: 'number', minimum: 1, maximum: 1296 },
+        tracking: { type: 'integer', minimum: -1000, maximum: 10000 },
+      },
+      additionalProperties: false,
+    },
+  },
 };
 
 const addText = {

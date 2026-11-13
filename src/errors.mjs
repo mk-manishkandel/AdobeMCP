@@ -12,6 +12,8 @@ export const ErrorCodes = Object.freeze({
   OSASCRIPT_FAILED: 'osascript_failed',
   BAD_RESPONSE: 'bad_response',
   CONFIG: 'config',
+  CANCELLED: 'cancelled',
+  FILE_EXISTS: 'file_exists',
 });
 
 /** An error raised while talking to an Adobe app. `message` is safe to show to the model. */

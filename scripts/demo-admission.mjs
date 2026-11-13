@@ -112,10 +112,10 @@ async function buildStory(c, { photo, logo }) {
 }
 
 async function exportAll(c, out) {
-  const post = await c.must('ai_export', { path: join(out, 'admission-post.png'), artboard: 0, width: POST.w });
-  const story = await c.must('ai_export', { path: join(out, 'admission-story.png'), artboard: 1, width: STORY.w });
+  const post = await c.must('ai_export', { path: join(out, 'admission-post.png'), artboard: 0, width: POST.w, overwrite: true });
+  const story = await c.must('ai_export', { path: join(out, 'admission-story.png'), artboard: 1, width: STORY.w, overwrite: true });
   const aiPath = join(out, 'admission-2026.ai');
-  await c.must('ai_save', { path: aiPath });
+  await c.must('ai_save', { path: aiPath, overwrite: true });
   return [post.path, story.path, aiPath];
 }
 

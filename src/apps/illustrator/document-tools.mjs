@@ -1,7 +1,10 @@
 /**
  * Document-level ai_* tools.
  */
-import { artboard, color, filePath, objectSchema, withPaths } from './schemas.mjs';
+import { artboard, color, filePath, itemRef, layer, objectSchema, overwrite, px, withNoClobber, withPaths } from './schemas.mjs';
+
+/** Read-only and undo calls should never wait minutes; a long wait means a dialog is open. */
+const QUICK_TIMEOUT_SEC = 60;
 
 const getDocumentInfo = {
   name: 'ai_get_document_info',
@@ -13,6 +16,7 @@ const getDocumentInfo = {
     'Use the returned ids with the other tools. Pass artboard to list only items on that artboard.',
   inputSchema: objectSchema({ artboard: artboard('Optional filter: only items whose centre lies on this artboard.') }),
   annotations: { readOnlyHint: true },
+  timeoutSec: QUICK_TIMEOUT_SEC,
 };
 
 const newDocument = {
@@ -36,8 +40,13 @@ const newDocument = {
 
 const open = {
   name: 'ai_open',
-  description: 'Open an .ai, .pdf, .svg or .eps file (e.g. a template) and make it the active document.',
-  inputSchema: objectSchema({ path: filePath('File to open') }, ['path']),
+  description:
+    'Open an .ai, .pdf, .svg or .eps file (e.g. a template) and make it the active document, or pass document to ' +
+    'switch to a document that is already open (all other tools work on the active document).',
+  inputSchema: objectSchema({
+    path: filePath('File to open'),
+    document: { type: 'string', minLength: 1, description: 'Name of an open document to make active (see ai_status)' },
+  }),
   handler: withPaths(['path']),
 };
 
@@ -55,14 +64,16 @@ const save = {
   name: 'ai_save',
   description:
     'Save the document. With a path ending in .ai saves as Illustrator; ending in .pdf saves as (editable) PDF. ' +
-    'Without a path re-saves to the existing file. Missing folders are created.',
+    'Without a path re-saves to the existing file. Missing folders are created. Saving to a path that already exists ' +
+    'needs overwrite: true.',
   inputSchema: objectSchema({
     path: filePath('Target .ai or .pdf file'),
     document: { type: 'string', minLength: 1, description: 'Document name. Default: active document.' },
     pdf_preset: { type: 'string', minLength: 1, description: 'PDF preset name, e.g. "[High Quality Print]" (pdf only)' },
     embed_linked_files: { type: 'boolean', default: false, description: 'Embed linked images when saving .ai' },
+    overwrite,
   }),
-  handler: withPaths(['path']),
+  handler: withNoClobber(['path']),
 };
 
 const addArtboard = {
@@ -90,6 +101,7 @@ const undo = {
     'with ai_set_item; use this for quick reverts.',
   inputSchema: objectSchema({ steps: { type: 'integer', minimum: 1, maximum: 50, default: 1, description: 'Number of undo steps' } }),
   annotations: { destructiveHint: true },
+  timeoutSec: QUICK_TIMEOUT_SEC,
 };
 
 const listFonts = {
@@ -102,6 +114,26 @@ const listFonts = {
     limit: { type: 'integer', minimum: 1, maximum: 500, default: 50, description: 'Maximum fonts returned' },
   }),
   annotations: { readOnlyHint: true },
+  timeoutSec: QUICK_TIMEOUT_SEC,
 };
 
-export const documentTools = Object.freeze([getDocumentInfo, newDocument, open, close, save, addArtboard, undo, listFonts]);
+const copyItems = {
+  name: 'ai_copy_items',
+  description:
+    'Copy items from another OPEN document into the active one (reuse a logo, footer or whole block from an old ' +
+    'design). Items keep their position relative to their artboard, or pass x/y to put the top-left of the copied ' +
+    'group there. Text keeps its fonts; check ai_preview, since fonts that are not active render with a fallback.',
+  inputSchema: objectSchema(
+    {
+      from_document: { type: 'string', minLength: 1, description: 'Name of the open source document (see ai_status)' },
+      items: { type: 'array', items: itemRef, minItems: 1, maxItems: 200, description: 'Item ids or names in the source document' },
+      x: px('Left of the copied group on the target artboard'),
+      y: px('Top of the copied group on the target artboard'),
+      artboard: artboard(),
+      layer,
+    },
+    ['from_document', 'items'],
+  ),
+};
+
+export const documentTools = Object.freeze([getDocumentInfo, newDocument, open, close, save, addArtboard, undo, listFonts, copyItems]);

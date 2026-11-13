@@ -16,7 +16,7 @@ after(() => rmSync(work, { recursive: true, force: true }));
 const REQUIRED_TOOLS = [
   'ai_status', 'ai_get_document_info', 'ai_new_document', 'ai_open', 'ai_close', 'ai_save', 'ai_add_artboard',
   'ai_add_text', 'ai_set_text', 'ai_add_shape', 'ai_place_image', 'ai_set_item', 'ai_align', 'ai_export',
-  'ai_preview', 'ai_list_fonts', 'ai_undo', 'ai_run_script',
+  'ai_preview', 'ai_list_fonts', 'ai_undo', 'ai_run_script', 'ai_copy_items',
 ];
 
 function walkSchemas(schema, visit, path = '') {
@@ -121,7 +121,7 @@ test('preview handler returns image content and removes the temp png', async () 
 
 test('tool runner turns invalid args into an isError result', async () => {
   const runner = createToolRunner({ apps: [illustratorApp({})], bridge: { tmpDir: work, call: async () => ({}) } });
-  const res = await runner.callTool('ai_add_shape', { shape: 'line', x: 0 });
+  const res = await runner.callTool('ai_add_shape', { x: 0, y: 0 });
   assert.equal(res.isError, true);
-  assert.match(res.content[0].text, /arguments\.y is required/);
+  assert.match(res.content[0].text, /arguments\.shape is required/);
 });

@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { artboard, filePath, objectSchema, withPaths } from './schemas.mjs';
+import { artboard, filePath, objectSchema, overwrite, withNoClobber } from './schemas.mjs';
 
 export const PREVIEW_DEFAULT_SIZE = 800;
 
@@ -12,7 +12,7 @@ const exportTool = {
   name: 'ai_export',
   description:
     'Export one artboard to PNG, JPG, SVG or WebP (format from the file extension, or set format). Size: width or height ' +
-    'in output pixels (e.g. width 1080 for Instagram), or scale (1 = 100%, 2 = 2x). Overwrites the file. ' +
+    'in output pixels (e.g. width 1080 for Instagram), or scale (1 = 100%, 2 = 2x). An existing file is only replaced with overwrite: true. ' +
     'Returns the path and pixel size.',
   inputSchema: objectSchema(
     {
@@ -24,10 +24,11 @@ const exportTool = {
       scale: { type: 'number', exclusiveMinimum: 0, maximum: 10, description: 'Scale factor (ignored if width/height given)' },
       transparent: { type: 'boolean', default: false, description: 'Transparent background (png/webp)' },
       quality: { type: 'integer', minimum: 1, maximum: 100, default: 85, description: 'JPG/WebP quality' },
+      overwrite,
     },
     ['path'],
   ),
-  handler: withPaths(['path']),
+  handler: withNoClobber(['path']),
 };
 
 const preview = {

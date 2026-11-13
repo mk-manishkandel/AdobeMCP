@@ -17,6 +17,8 @@ export const ILLUSTRATOR_JSX_FILES = Object.freeze([
   'illustrator-text.jsx',
   'illustrator-items.jsx',
   'illustrator-export.jsx',
+  'illustrator-effects.jsx',
+  'illustrator-transfer.jsx',
 ]);
 
 export const ILLUSTRATOR_INSTRUCTIONS = [
@@ -38,6 +40,7 @@ const statusTool = {
     'Call this first to check that Illustrator is reachable.',
   inputSchema: objectSchema({}),
   annotations: { readOnlyHint: true },
+  timeoutSec: 30,
 };
 
 const runScriptTool = {
@@ -63,6 +66,11 @@ export const ILLUSTRATOR_TOOLS = Object.freeze([
   runScriptTool,
 ]);
 
+/** ai_run_script is on unless ADOBE_MCP_ALLOW_RUN_SCRIPT is "0" or "false". */
+function runScriptAllowed(env) {
+  return !/^(0|false)$/i.test(env.ADOBE_MCP_ALLOW_RUN_SCRIPT ?? '');
+}
+
 /** @param {Record<string,string|undefined>} env */
 export function illustratorApp(env = {}) {
   return Object.freeze({
@@ -71,6 +79,6 @@ export function illustratorApp(env = {}) {
     target: env.AI_APP || ILLUSTRATOR_BUNDLE_ID,
     jsxFiles: ILLUSTRATOR_JSX_FILES,
     instructions: ILLUSTRATOR_INSTRUCTIONS,
-    tools: ILLUSTRATOR_TOOLS,
+    tools: runScriptAllowed(env) ? ILLUSTRATOR_TOOLS : ILLUSTRATOR_TOOLS.filter((t) => t !== runScriptTool),
   });
 }

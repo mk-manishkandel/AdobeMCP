@@ -105,9 +105,17 @@ function __requireFile(path, what) {
   return f;
 }
 
+/* Opens a file, or with `document` switches to an already open document. */
 function ai_open(a) {
-  var doc = app.open(__requireFile(a.path, 'File'));
-  return __docSummary(doc, 0);
+  if (!a.path && !a.document) __fail('Give path (a file to open) or document (the name of an open document).');
+  var doc;
+  if (a.document) {
+    doc = __findDocument(a.document);
+    doc.activate();
+  } else {
+    doc = app.open(__requireFile(a.path, 'File'));
+  }
+  return __docSummary(app.activeDocument, 0);
 }
 
 function __findDocument(name) {

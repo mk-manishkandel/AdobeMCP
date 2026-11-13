@@ -1,6 +1,7 @@
 /*
  * illustrator-items.jsx: item ai_* tools.
  * ai_add_shape, ai_place_image, ai_set_item, ai_align
+ * (paint/effect helpers live in illustrator-effects.jsx)
  */
 
 /* ---------- shapes ---------- */
@@ -28,6 +29,17 @@ function __makeLine(layer, doc, ab, a) {
   return line;
 }
 
+/* Free-form polyline/polygon through vertices [[x, y], ...]. */
+function __makePath(layer, doc, ab, a) {
+  if (!a.vertices || a.vertices.length < 2) __fail('shape "path" needs vertices: at least 2 [x, y] points.');
+  var pts = [];
+  for (var i = 0; i < a.vertices.length; i++) pts.push(__toAi(doc, ab, a.vertices[i][0], a.vertices[i][1]));
+  var path = layer.pathItems.add();
+  path.setEntirePath(pts);
+  path.closed = a.closed;
+  return path;
+}
+
 function ai_add_shape(a) {
   var doc = __requireDoc();
   var ab = __abIndex(doc, a.artboard);
@@ -36,6 +48,12 @@ function ai_add_shape(a) {
   if (a.shape === 'line') {
     if (!__has(a, 'x2') || !__has(a, 'y2')) __fail('shape "line" needs x, y (start) and x2, y2 (end).');
     item = __makeLine(layer, doc, ab, a);
+  } else if (a.shape === 'path') {
+    item = __makePath(layer, doc, ab, a);
+    var fill = __pick(a, 'fill', a.closed ? '#CCCCCC' : 'none');
+    __applyPaint(item, { fill: fill, stroke: __pick(a, 'stroke', a.closed ? 'none' : '#000000') });
+    __applyPaint(item, { stroke_width: __pick(a, 'stroke_width', 1) });
+    __gradientAngle(item, fill);
   } else {
     if (!__has(a, 'w') || !__has(a, 'h')) __fail('shape "' + a.shape + '" needs w and h.');
     item = __makeShape(layer, doc, ab, a);
@@ -45,6 +63,7 @@ function ai_add_shape(a) {
     }
     __applyPaint(item, { fill: __pick(a, 'fill', '#CCCCCC'), stroke: __pick(a, 'stroke', 'none') });
     if (__has(a, 'stroke_width')) __applyPaint(item, { stroke_width: a.stroke_width });
+    __gradientAngle(item, __pick(a, 'fill', null));
   }
   item.opacity = a.opacity;
   if (a.name) item.name = a.name;
@@ -176,15 +195,11 @@ function __applyBasics(item, a) {
   if (__has(a, 'opacity')) item.opacity = a.opacity;
   if (__has(a, 'hidden')) item.hidden = a.hidden;
   if (__has(a, 'fill') || __has(a, 'stroke') || __has(a, 'stroke_width')) {
-    if (item.typename === 'TextFrame') {
-      if (__has(a, 'fill')) item.textRange.characterAttributes.fillColor = __makeColor(a.fill);
-    } else if (item.typename === 'PathItem') {
-      __applyPaint(item, a);
-    } else if (item.typename === 'CompoundPathItem') {
-      for (var i = 0; i < item.pathItems.length; i++) __applyPaint(item.pathItems[i], a);
-    } else {
-      __fail('fill/stroke can only be set on text, paths and compound paths (item is ' + __typeOf(item) + ').');
-    }
+    var paint = {};
+    if (__has(a, 'fill')) paint.fill = a.fill;
+    if (__has(a, 'stroke')) paint.stroke = a.stroke;
+    if (__has(a, 'stroke_width')) paint.stroke_width = a.stroke_width;
+    __paintItem(item, paint);
   }
 }
 
@@ -227,9 +242,13 @@ function ai_set_item(a) {
       item = __duplicate(doc, item, ab, __pick(a, 'to_artboard', null));
       if (__has(a, 'to_artboard')) ab = a.to_artboard;
     }
+    if (a.outline) item = __outlineText(item);
     __applyEdits(doc, item, ab, a);
+    var effects = __applyEffects(doc, item, a);
     item.locked = __has(a, 'locked') ? a.locked : wasLocked;
-    return __itemInfo(doc, item, ab, 0);
+    var info = __itemInfo(doc, item, ab, 0);
+    for (var k in effects) if (effects.hasOwnProperty(k)) info[k] = effects[k];
+    return info;
   } finally {
     layer.locked = layerWasLocked;
   }

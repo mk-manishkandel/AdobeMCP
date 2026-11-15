@@ -25,6 +25,7 @@ const ES3_FORBIDDEN = [
   [/Array\.isArray/, 'Array.isArray'],
   [/\.forEach\(|\.map\(|\.filter\(|\.reduce\(|\.some\(|\.every\(/, 'ES5 array method'],
   [/\.trim\(\)|Object\.keys|Date\.now|\.bind\(/, 'ES5 built-in'],
+  [/\?[^?:;()]*:[^?;()]*\?/, 'chained a ? b : c ? d : e without parentheses (ExtendScript mis-parses it)'],
 ];
 
 for (const file of JSX_FILES) {

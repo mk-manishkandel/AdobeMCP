@@ -40,6 +40,7 @@
     "test:coverage": "node --test --experimental-test-coverage \"test/**/*.test.mjs\"",
     "test:live": "node test/live/live.mjs",
     "test:live:ps": "node test/live/live-photoshop.mjs",
+    "build:qr-plugin": "node scripts/build-qr-plugin.mjs",
     "demo": "node scripts/demo-admission.mjs"
   }
 }

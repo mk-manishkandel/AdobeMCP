@@ -18,7 +18,7 @@ const REQUIRED_TOOLS = [
   'ai_add_text', 'ai_set_text', 'ai_add_shape', 'ai_place_image', 'ai_set_item', 'ai_align', 'ai_export',
   'ai_preview', 'ai_list_fonts', 'ai_undo', 'ai_run_script', 'ai_copy_items',
   'ai_group', 'ai_pathfinder', 'ai_layer', 'ai_swatch', 'ai_symbol', 'ai_graphic_style', 'ai_distort', 'ai_trace_image',
-  'ai_export_pdf',
+  'ai_export_pdf', 'ai_qr_code',
 ];
 
 function walkSchemas(schema, visit, path = '') {

@@ -263,6 +263,25 @@ async function distortTraceAndPdf(c) {
   await c.must('ai_close', {});
 }
 
+async function qrCodes(c) {
+  console.log('qr codes');
+  await c.must('ai_new_document', { width: 800, height: 400, name: 'LiveQR' });
+  const sq = await c.must('ai_qr_code', { text: 'https://github.com/mk-manishkandel/AdobeMCP', x: 20, y: 20, size: 360, name: 'QRSquare' });
+  check('qr square: box, version and compound modules', near(sq.x, 20) && near(sq.w, 360) && sq.qr.version === 4 &&
+    sq.children.some((k) => k.type === 'compound' || k.name === 'QR modules'), JSON.stringify({ ...sq, children: undefined }));
+  const dots = await c.must('ai_qr_code', {
+    text: 'बोस्टन इन्टरनेशनल कलेज', x: 420, y: 20, size: 360, style: 'dots', ecc: 'H', background: 'none',
+    fill: { type: 'linear', angle: -90, stops: [{ color: '#6A11CB' }, { color: '#2575FC' }] },
+  });
+  check('qr dots: transparent background, many paths', dots.qr.style === 'dots' && dots.qr.paths > 100 && dots.children_count === 1, JSON.stringify(dots.qr));
+  const long = await c.callTool('ai_qr_code', { text: 'y'.repeat(2000), ecc: 'H' });
+  check('qr too long is a clear error', long.isError && /too long/.test(long.text), long.text);
+  const png = join(work, 'out/qr.png');
+  await c.must('ai_export', { path: png, width: 1600 });
+  check('qr export', existsSync(png) && dims(png) === '1600x800', existsSync(png) ? dims(png) : 'missing');
+  await c.must('ai_close', {});
+}
+
 async function main() {
   const c = await startClient();
   try {
@@ -275,6 +294,7 @@ async function main() {
     await capabilities(c);
     await structureAndLibrary(c);
     await distortTraceAndPdf(c);
+    await qrCodes(c);
     const cm = await c.must('ai_new_document', { width: 595, height: 842, color_mode: 'cmyk' });
     check('cmyk document', cm.colorSpace === 'cmyk');
     await c.must('ai_close', {});

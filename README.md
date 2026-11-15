@@ -10,7 +10,7 @@ A local, zero-dependency [MCP](https://modelcontextprotocol.io) server that lets
 and **Adobe Photoshop 2026** on macOS: build social posts, posters and banners, fill templates, edit photos, make size
 variants, look at the result, and export.
 
-**51 tools**: 28 for Illustrator (`ai_*`) and 23 for Photoshop (`ps_*`).
+**52 tools**: 29 for Illustrator (`ai_*`) and 23 for Photoshop (`ps_*`).
 
 Illustrator:
 - documents, artboards and layers;
@@ -22,6 +22,7 @@ Illustrator:
 - symbols and graphic styles;
 - warp and other distortions, extrusion;
 - image placement and Image Trace;
+- vector QR codes (also as a standalone Illustrator script, see [QR Code script](#qr-code-script));
 - live previews that Claude can see;
 - PNG, JPG, SVG and WebP export, and print PDFs.
 
@@ -164,6 +165,7 @@ All tools except `ai_run_script` use **design coordinates**:
 | `ai_graphic_style` | List graphic styles and apply them to items. |
 | `ai_distort` | Warp (15 styles), twirl, roughen, pucker/bloat, and solid 3D-style extrusion. |
 | `ai_trace_image` | Image Trace a photo or logo into editable vector paths. |
+| `ai_qr_code` | Scannable QR code as native vector art: URL, Wi-Fi, mailto, tel or any (Nepali) text; ECC L/M/Q/H, square or dot modules, any fill/gradient. |
 | `ai_align` | Align items to the artboard with a margin, individually or as a group. |
 | `ai_preview` | Render an artboard to a PNG and return it as an image so Claude can see the design. |
 | `ai_export` | Export an artboard to PNG, JPG, SVG or WebP at a given pixel width/height or scale (`overwrite: true` to replace a file). |
@@ -202,6 +204,26 @@ Each tool's full parameter list is in its JSON schema, which Claude sees directl
 - **Opacity masks:** Illustrator offers no scripting access (no API and no menu command), so they cannot be made
   through this server. For a fade, use a gradient whose stops have `opacity`.
 - **True 3D (Effect > 3D and Materials):** not scriptable; `ai_distort` `extrude` gives a flat-shaded 3D look instead.
+
+## QR Code script
+
+The QR encoder also ships as a standalone Illustrator script with a dialog, no MCP or Claude needed:
+[`plugins/illustrator/QR Code.jsx`](plugins/illustrator/QR%20Code.jsx).
+
+- Content: text / URL, Wi-Fi (SSID, password, security, hidden), email, phone.
+- Appearance: size, quiet zone, error correction, square or dot modules, colour, background or transparent.
+- Output: a group `QR Code` centred on the active artboard, holding the background and one compound path of merged
+  module outlines, so it scales, recolours and prints cleanly. Pure black becomes 100% K in CMYK documents.
+
+Run it once with **File › Scripts › Other Script…** (⌘F12), or install it into the Scripts menu (needs an admin
+password) and restart Illustrator:
+
+```bash
+sudo cp "plugins/illustrator/QR Code.jsx" "/Applications/Adobe Illustrator 2026/Presets.localized/en_US/Scripts/"
+```
+
+The script is generated: edit `jsx/qr-encoder.jsx`, `jsx/qr-draw.jsx` or `plugins/illustrator/src/qr-dialog.jsx`,
+then run `npm run build:qr-plugin` (a test fails if the generated file is stale).
 
 ## Photoshop
 

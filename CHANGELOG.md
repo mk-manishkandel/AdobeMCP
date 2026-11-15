@@ -14,6 +14,16 @@ Adobe Photoshop support: 23 `ps_*` tools in the same server, next to the Illustr
 - Every `ps_*` call that changes a document is one history step.
 - Shared schema helpers moved to `src/apps/shared-schemas.mjs`. New `PS_APP` variable and `npm run test:live:ps`.
 
+Vector QR codes in Illustrator.
+
+- `ai_qr_code`: QR Model 2 encoder written in ES3 (versions 1-40, ECC L/M/Q/H, numeric/alphanumeric/UTF-8 byte
+  modes, automatic mask). Output is one compound path of traced module outlines (holes wound backwards), grouped
+  with a quiet-zone background; `style: "dots"` keeps square finder eyes. Fill takes hex, swatch or gradient.
+- Standalone script `plugins/illustrator/QR Code.jsx` (File › Scripts) with a dialog for text/URL, Wi-Fi, email and
+  phone, built from the same sources by `npm run build:qr-plugin`.
+- JSX lint now rejects unparenthesised chained ternaries: ExtendScript parses `a ? b : c ? d : e` differently from
+  JavaScript, which silently corrupted QR codes up to version 9 until it was caught live.
+
 ## 1.1.0 (2026-11-13)
 
 Nine new tools and richer paint, so most of Illustrator's everyday features have a typed tool.

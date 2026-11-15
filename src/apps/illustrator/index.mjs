@@ -9,6 +9,7 @@ import { exportTools } from './export-tools.mjs';
 import { itemTools } from './item-tools.mjs';
 import { libraryTools } from './library-tools.mjs';
 import { objectSchema } from './schemas.mjs';
+import { qrTools } from './qr-tools.mjs';
 import { structureTools } from './structure-tools.mjs';
 import { textTools } from './text-tools.mjs';
 
@@ -25,6 +26,9 @@ export const ILLUSTRATOR_JSX_FILES = Object.freeze([
   'illustrator-structure.jsx',
   'illustrator-library.jsx',
   'illustrator-distort.jsx',
+  'qr-encoder.jsx',
+  'qr-draw.jsx',
+  'illustrator-qr.jsx',
 ]);
 
 export const ILLUSTRATOR_INSTRUCTIONS = [
@@ -71,6 +75,7 @@ export const ILLUSTRATOR_TOOLS = Object.freeze([
   ...structureTools,
   ...libraryTools,
   ...effectTools,
+  ...qrTools,
   ...exportTools,
   runScriptTool,
 ]);

@@ -1,8 +1,26 @@
 # adobe-mcp
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A520-339933)
+![macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
+![Illustrator 2026](https://img.shields.io/badge/Adobe%20Illustrator-2026-FF9A00)
+
 A local, zero-dependency [MCP](https://modelcontextprotocol.io) server that lets Claude drive **Adobe Illustrator 2026**
 on macOS: build social posts, posters and banners, fill templates, make size variants, look at the result, and
 export. Photoshop (`ps_*` tools) is planned; the structure is ready for it.
+
+**28 tools**:
+- documents, artboards and layers;
+- text, with styled runs and Nepali support;
+- shapes and Bézier curves;
+- gradients, swatches and patterns;
+- glow, shadow, blur and blend modes;
+- groups, clipping masks and pathfinder;
+- symbols and graphic styles;
+- warp and other distortions, extrusion;
+- image placement and Image Trace;
+- live previews that Claude can see;
+- PNG, JPG, SVG and WebP export, and print PDFs.
 
 - No npm packages: plain Node ≥ 20 (tested on Node 24.22.1, Apple Silicon).
 - Talks to Illustrator through its public scripting interface: AppleScript `do javascript` running ExtendScript.
@@ -263,3 +281,7 @@ A tool is **a JSX function plus a schema entry with the same name**. Example: `a
 | `npm run test:coverage` | no | Same, with coverage |
 | `npm run test:live` | yes | Every tool through the real server over stdio |
 | `npm run demo` | yes | End-to-end admission post + story export |
+
+## License
+
+[MIT](LICENSE)

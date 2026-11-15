@@ -2,7 +2,31 @@
   "name": "adobe-mcp",
   "version": "1.1.0",
   "private": true,
-  "description": "Local, zero-dependency MCP server that drives Adobe Illustrator (and later Photoshop) through AppleScript + ExtendScript.",
+  "description": "Local, zero-dependency MCP server that lets Claude design in Adobe Illustrator on macOS: text, shapes, gradients, effects, pathfinder, layers, symbols, image trace and export.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "adobe-illustrator",
+    "illustrator",
+    "extendscript",
+    "applescript",
+    "macos",
+    "design-automation"
+  ],
+  "homepage": "https://github.com/mk-manishkandel/AdobeMCP#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mk-manishkandel/AdobeMCP.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mk-manishkandel/AdobeMCP/issues"
+  },
+  "license": "MIT",
+  "author": "mk-manishkandel",
+  "os": [
+    "darwin"
+  ],
   "type": "module",
   "main": "server.mjs",
   "engines": {
@@ -14,6 +38,5 @@
     "test:coverage": "node --test --experimental-test-coverage \"test/**/*.test.mjs\"",
     "test:live": "node test/live/live.mjs",
     "demo": "node scripts/demo-admission.mjs"
-  },
-  "license": "UNLICENSED"
+  }
 }

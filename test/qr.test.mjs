@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import { ILLUSTRATOR_JSX_FILES, ILLUSTRATOR_TOOLS } from '../src/apps/illustrator/index.mjs';
 import { QR_MAX_TEXT_LENGTH } from '../src/apps/illustrator/qr-tools.mjs';
 import { applyDefaults, validate } from '../src/validate.mjs';
-import { QR_PLUGIN_PATH, buildQrPlugin } from '../scripts/build-qr-plugin.mjs';
+import { QR_PANEL_DIR, QR_PLUGIN_PATH, buildAll } from '../scripts/build-qr-plugin.mjs';
 import { ROOT, readJsx } from './helpers.mjs';
 
 const qr = vm.createContext({});
@@ -165,15 +165,52 @@ test('ai_qr_code is registered with its JSX files and validates arguments with d
   assert.notDeepEqual(validate(tool.inputSchema, { text: 'x'.repeat(QR_MAX_TEXT_LENGTH + 1) }), []);
 });
 
-test('the standalone Illustrator script is rebuilt from the current sources and parses', () => {
-  const current = readFileSync(QR_PLUGIN_PATH, 'utf8');
-  assert.equal(current, buildQrPlugin(), 'run: npm run build:qr-plugin');
-  assert.doesNotThrow(() => new vm.Script(current.replace(/^#target.*$/m, ''), { filename: 'QR Code.jsx' }));
+test('the script and panel files are rebuilt from the current sources and parse', () => {
+  for (const [path, built] of Object.entries(buildAll())) {
+    assert.equal(readFileSync(path, 'utf8'), built, `${path} is stale: run npm run build:qr-plugin`);
+  }
+  const script = readFileSync(QR_PLUGIN_PATH, 'utf8').replace(/^#target.*$/m, '');
+  assert.doesNotThrow(() => new vm.Script(script, { filename: 'QR Code.jsx' }));
+});
+
+test('panel manifest targets Illustrator and points at files that exist', () => {
+  const manifest = readFileSync(join(QR_PANEL_DIR, 'CSXS', 'manifest.xml'), 'utf8');
+  assert.match(manifest, /<Host Name="ILST" Version="\[25\.0,99\.9\]"\/>/);
+  assert.match(manifest, /<Type>Panel<\/Type>/);
+  assert.match(manifest, /<Menu>QR Code<\/Menu>/);
+  const ids = [...manifest.matchAll(/Extension Id="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(ids).size, 1, 'ExtensionList and DispatchInfoList use the same id');
+  for (const [, rel] of manifest.matchAll(/<(?:MainPath|ScriptPath)>\.\/([^<]+)</g)) {
+    assert.doesNotThrow(() => readFileSync(join(QR_PANEL_DIR, rel)), rel);
+  }
+  const html = readFileSync(join(QR_PANEL_DIR, 'index.html'), 'utf8');
+  for (const [, rel] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    assert.doesNotThrow(() => readFileSync(join(QR_PANEL_DIR, rel)), rel);
+  }
+});
+
+test('panel host script only adds QRCodePanel and reports errors as ERR lines', () => {
+  const global = {};
+  const ctx = vm.createContext({ $: { global } });
+  vm.runInContext(readFileSync(join(QR_PANEL_DIR, 'jsx', 'host.jsx'), 'utf8'), ctx);
+  assert.deepEqual(Object.keys(global), ['QRCodePanel']);
+  assert.equal(typeof ctx.__qrEncode, 'undefined', 'encoder stays private to the host closure');
+  const res = global.QRCodePanel.create({ text: '', ecc: 'M', size: 100, quiet: 4, style: 'square' });
+  assert.match(res, /^ERR\tQR text is empty\./);
+});
+
+test('panel core exposes the encoder and payload rules to the preview', () => {
+  const ctx = vm.createContext({ encodeURIComponent });
+  vm.runInContext(readFileSync(join(QR_PANEL_DIR, 'js', 'qr-core.js'), 'utf8'), ctx);
+  for (const fn of ['__qrEncode', '__qrOutlines', '__qrIsFinder', 'qrpWifiPayload', 'qrpTextPayload', 'qrpHex', 'qrpNumber']) {
+    assert.equal(typeof ctx[fn], 'function', fn);
+  }
+  assert.equal(vm.runInContext("__qrEncode(qrpPhonePayload('+977 1'), 'M', 0).version", ctx), 1);
 });
 
 test('plugin payload builders escape Wi-Fi fields and validate input', () => {
   const ctx = vm.createContext({});
-  vm.runInContext(readFileSync(join(ROOT, 'plugins', 'illustrator', 'src', 'qr-dialog.jsx'), 'utf8'), ctx);
+  vm.runInContext(readFileSync(join(ROOT, 'plugins', 'illustrator', 'src', 'qr-payloads.jsx'), 'utf8'), ctx);
   ctx.SSID = 'Lab; "5G"';
   ctx.PW = 'p:w\\';
   const run = (expr) => vm.runInContext(expr, ctx);

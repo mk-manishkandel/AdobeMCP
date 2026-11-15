@@ -22,7 +22,7 @@ Illustrator:
 - symbols and graphic styles;
 - warp and other distortions, extrusion;
 - image placement and Image Trace;
-- vector QR codes (also as a standalone Illustrator script, see [QR Code script](#qr-code-script));
+- vector QR codes (also as a standalone Illustrator panel and script, see [QR Code panel and script](#qr-code-panel-and-script));
 - live previews that Claude can see;
 - PNG, JPG, SVG and WebP export, and print PDFs.
 
@@ -205,25 +205,53 @@ Each tool's full parameter list is in its JSON schema, which Claude sees directl
   through this server. For a fade, use a gradient whose stops have `opacity`.
 - **True 3D (Effect > 3D and Materials):** not scriptable; `ai_distort` `extrude` gives a flat-shaded 3D look instead.
 
-## QR Code script
+## QR Code panel and script
 
-The QR encoder also ships as a standalone Illustrator script with a dialog, no MCP or Claude needed:
-[`plugins/illustrator/QR Code.jsx`](plugins/illustrator/QR%20Code.jsx).
+The QR encoder also ships as two standalone Illustrator plugins that need no MCP server or Claude.
+Both create a group `QR Code` holding a background square and one compound path of merged module outlines, so the
+code scales, recolours and prints cleanly. Pure black becomes 100% K in CMYK documents.
 
-- Content: text / URL, Wi-Fi (SSID, password, security, hidden), email, phone.
-- Appearance: size, quiet zone, error correction, square or dot modules, colour, background or transparent.
-- Output: a group `QR Code` centred on the active artboard, holding the background and one compound path of merged
-  module outlines, so it scales, recolours and prints cleanly. Pure black becomes 100% K in CMYK documents.
+Content: text / URL, Wi-Fi (SSID, password, security, hidden), email, phone. Appearance: size, quiet zone, error
+correction L/M/Q/H, square or dot modules, colour, background or transparent.
 
-Run it once with **File › Scripts › Other Script…** (⌘F12), or install it into the Scripts menu (needs an admin
-password) and restart Illustrator:
+### Panel (Window › Extensions › QR Code)
+
+A dockable panel ([`plugins/illustrator/qr-panel`](plugins/illustrator/qr-panel)) with a live preview of the exact
+code that will be drawn (version, grid and module size update as you type), and placement at the centre of the
+active artboard or of the current selection.
+
+Install it signed, so Illustrator loads it like any other extension. Download Adobe's free signing tool
+[`ZXPSignCmd`](https://github.com/Adobe-CEP/CEP-Resources/tree/master/ZXPSignCMD) (macOS build, runs under Rosetta),
+then:
+
+```bash
+ZXPSIGNCMD=/path/to/ZXPSignCmd npm run install:qr-panel
+```
+
+The panel is signed with a throwaway self-signed certificate (random password, deleted after signing) and unpacked to
+`~/Library/Application Support/Adobe/CEP/extensions/com.mkmanishkandel.qrcode`. Restart Illustrator.
+
+Without `ZXPSIGNCMD` the panel is installed unsigned, and Illustrator loads it only after you turn on CEP debug mode
+(`defaults write com.adobe.CSXS.12 PlayerDebugMode 1`), which lets it load any unsigned panel.
+
+Remove it with `npm run install:qr-panel -- --remove`. Opening `plugins/illustrator/qr-panel/index.html` from a local
+web server shows the preview in a browser (Create is disabled outside Illustrator).
+
+### Script (File › Scripts › QR Code)
+
+A one-file dialog: [`plugins/illustrator/QR Code.jsx`](plugins/illustrator/QR%20Code.jsx). Run it once with
+**File › Scripts › Other Script…** (⌘F12), or install it into the Scripts menu (needs an admin password) and restart
+Illustrator:
 
 ```bash
 sudo cp "plugins/illustrator/QR Code.jsx" "/Applications/Adobe Illustrator 2026/Presets.localized/en_US/Scripts/"
 ```
 
-The script is generated: edit `jsx/qr-encoder.jsx`, `jsx/qr-draw.jsx` or `plugins/illustrator/src/qr-dialog.jsx`,
-then run `npm run build:qr-plugin` (a test fails if the generated file is stale).
+### Sources
+
+The script, the panel's `js/qr-core.js` and `jsx/host.jsx` are generated from `jsx/qr-encoder.jsx`,
+`jsx/qr-draw.jsx` and `plugins/illustrator/src/` (payloads, placement, dialog, panel host). After editing them run
+`npm run build:qr-plugin`; a test fails if a generated file is stale.
 
 ## Photoshop
 

@@ -674,29 +674,12 @@ function __qrFillCompound(compound, color) {
 }
 
 /*
- * qr-dialog.jsx: the "QR Code" dialog for the standalone Illustrator script.
- * Built together with jsx/qr-encoder.jsx and jsx/qr-draw.jsx into
- * plugins/illustrator/QR Code.jsx by scripts/build-qr-plugin.mjs.
- * ES3 only. Avoid chained "a ? b : c ? d : e" (ExtendScript mis-parses it).
+ * qr-payloads.jsx: QR content builders and input checks for the Illustrator QR
+ * script and panel. Pure ES3 (no Illustrator DOM), so it also runs in the panel's
+ * browser and in Node tests. Avoid chained "a ? b : c ? d : e" (ExtendScript mis-parses it).
  */
 
-var QRP_TITLE = 'QR Code';
-var QRP_TYPES = ['Text / URL', 'Wi-Fi', 'Email', 'Phone'];
-var QRP_ECC = ['L - 7%', 'M - 15%', 'Q - 25%', 'H - 30%'];
-var QRP_ECC_CODES = ['L', 'M', 'Q', 'H'];
-var QRP_SECURITY = ['WPA/WPA2/WPA3', 'WEP', 'None'];
 var QRP_SECURITY_CODES = ['WPA', 'WEP', 'nopass'];
-var QRP_STYLES = ['Square', 'Dots'];
-var QRP_DEFAULT_SIZE = 200;
-var QRP_DEFAULT_QUIET = 4;
-var QRP_MIN_SIZE = 10;
-var QRP_MAX_SIZE = 10000;
-var QRP_MAX_QUIET = 16;
-var QRP_NEW_DOC_SIZE = 600;
-var QRP_FIELD_WIDTH = 300;
-var QRP_LABEL_WIDTH = 110;
-
-/* ---------- payloads ---------- */
 
 /* Backslash-escapes the characters the Wi-Fi QR format reserves. */
 function qrpWifiEscape(s) {
@@ -749,6 +732,14 @@ function qrpNumber(value, label, min, max) {
   return n;
 }
 
+/*
+ * qr-place.jsx: puts an encoded QR into the active Illustrator document (DOM code
+ * shared by the QR script and the QR panel). Needs qr-encoder.jsx and qr-draw.jsx.
+ * opts: {text, ecc, size, quiet, style, foreground: {r,g,b}, background: {r,g,b}|null, at: "artboard"|"selection"}
+ */
+
+var QRP_NEW_DOC_SIZE = 600;
+
 /* Pure black becomes 100% K in CMYK documents (crisp single-plate print); other colours convert from RGB. */
 function qrpColor(doc, rgb) {
   var isBlack = rgb.r === 0 && rgb.g === 0 && rgb.b === 0;
@@ -785,14 +776,28 @@ function qrpBackground(group, doc, top, left, opts) {
   bg.fillColor = qrpColor(doc, opts.background);
 }
 
-/* Draws the QR centred on the active artboard; returns {group, qr}. */
+/* [centreX, centreY] in document points: the selection's visible bounds when asked and present, else the active artboard. */
+function qrpCentre(doc, at) {
+  if (at === 'selection' && doc.selection && doc.selection.length > 0) {
+    var b = doc.selection[0].visibleBounds;
+    for (var i = 1; i < doc.selection.length; i++) {
+      var s = doc.selection[i].visibleBounds;
+      b = [Math.min(b[0], s[0]), Math.max(b[1], s[1]), Math.max(b[2], s[2]), Math.min(b[3], s[3])];
+    }
+    return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
+  }
+  var r = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect;
+  return [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2];
+}
+
+/* Draws the QR centred on the active artboard (or the selection); returns {group, qr}. */
 function qrpCreate(opts) {
   var qr = __qrEncode(opts.text, opts.ecc, 0);
   var doc = qrpTargetDocument();
   var layer = qrpTargetLayer(doc);
-  var r = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect;
-  var left = (r[0] + r[2]) / 2 - opts.size / 2;
-  var top = (r[1] + r[3]) / 2 + opts.size / 2;
+  var c = qrpCentre(doc, opts.at);
+  var left = c[0] - opts.size / 2;
+  var top = c[1] + opts.size / 2;
   var m = opts.size / (qr.size + 2 * opts.quiet);
   var q = opts.quiet;
   var map = function (mx, my) { return [left + (mx + q) * m, top - (my + q) * m]; };
@@ -806,6 +811,27 @@ function qrpCreate(opts) {
   group.selected = true;
   return { group: group, qr: qr };
 }
+
+/*
+ * qr-dialog.jsx: the "QR Code" dialog for the standalone Illustrator script.
+ * Built with jsx/qr-encoder.jsx, jsx/qr-draw.jsx, qr-payloads.jsx and qr-place.jsx
+ * into plugins/illustrator/QR Code.jsx by scripts/build-qr-plugin.mjs.
+ * ES3 only. Avoid chained "a ? b : c ? d : e" (ExtendScript mis-parses it).
+ */
+
+var QRP_TITLE = 'QR Code';
+var QRP_TYPES = ['Text / URL', 'Wi-Fi', 'Email', 'Phone'];
+var QRP_ECC = ['L - 7%', 'M - 15%', 'Q - 25%', 'H - 30%'];
+var QRP_ECC_CODES = ['L', 'M', 'Q', 'H'];
+var QRP_SECURITY = ['WPA/WPA2/WPA3', 'WEP', 'None'];
+var QRP_STYLES = ['Square', 'Dots'];
+var QRP_DEFAULT_SIZE = 200;
+var QRP_DEFAULT_QUIET = 4;
+var QRP_MIN_SIZE = 10;
+var QRP_MAX_SIZE = 10000;
+var QRP_MAX_QUIET = 16;
+var QRP_FIELD_WIDTH = 300;
+var QRP_LABEL_WIDTH = 110;
 
 /* ---------- dialog ---------- */
 

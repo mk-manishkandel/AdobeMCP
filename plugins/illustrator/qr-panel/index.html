@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Code</title>
+  <link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+  <main class="panel">
+    <section class="block">
+      <div class="tabs" role="tablist" id="type">
+        <button type="button" role="tab" data-type="text" aria-selected="true">Text / URL</button>
+        <button type="button" role="tab" data-type="wifi" aria-selected="false">Wi-Fi</button>
+        <button type="button" role="tab" data-type="email" aria-selected="false">Email</button>
+        <button type="button" role="tab" data-type="phone" aria-selected="false">Phone</button>
+      </div>
+
+      <div class="page" data-page="text">
+        <textarea id="text" rows="3" spellcheck="false" aria-label="Text or link">https://</textarea>
+      </div>
+      <div class="page" data-page="wifi" hidden>
+        <label>Network (SSID)<input id="ssid" type="text" spellcheck="false"></label>
+        <label>Password<input id="password" type="text" spellcheck="false"></label>
+        <label>Security
+          <select id="security">
+            <option value="0">WPA / WPA2 / WPA3</option>
+            <option value="1">WEP</option>
+            <option value="2">None</option>
+          </select>
+        </label>
+        <label class="check"><input id="hidden" type="checkbox"> Hidden network</label>
+      </div>
+      <div class="page" data-page="email" hidden>
+        <label>To<input id="to" type="email" spellcheck="false"></label>
+        <label>Subject<input id="subject" type="text"></label>
+        <label>Message<textarea id="body" rows="2"></textarea></label>
+      </div>
+      <div class="page" data-page="phone" hidden>
+        <label>Phone number<input id="phone" type="tel" value="+977"></label>
+      </div>
+    </section>
+
+    <section class="preview-wrap">
+      <div class="preview" id="preview" aria-label="QR code preview"></div>
+      <p class="info" id="info" aria-live="polite"></p>
+    </section>
+
+    <section class="block grid">
+      <label>Size (pt)<input id="size" type="number" min="10" max="10000" step="1" value="200"></label>
+      <label>Quiet zone<input id="quiet" type="number" min="0" max="16" step="1" value="4"></label>
+      <label>Error correction
+        <select id="ecc">
+          <option value="L">L · 7%</option>
+          <option value="M" selected>M · 15%</option>
+          <option value="Q">Q · 25%</option>
+          <option value="H">H · 30%</option>
+        </select>
+      </label>
+      <label>Style
+        <select id="style">
+          <option value="square" selected>Square</option>
+          <option value="dots">Dots</option>
+        </select>
+      </label>
+      <label>Colour
+        <span class="color"><input id="fgPick" type="color" value="#000000" aria-label="Pick colour"><input id="fg" type="text" value="#000000" spellcheck="false"></span>
+      </label>
+      <label>Background
+        <span class="color"><input id="bgPick" type="color" value="#ffffff" aria-label="Pick background"><input id="bg" type="text" value="#FFFFFF" spellcheck="false"></span>
+      </label>
+      <label class="check wide"><input id="transparent" type="checkbox"> Transparent background</label>
+      <label class="wide">Place at
+        <select id="at">
+          <option value="artboard" selected>Centre of active artboard</option>
+          <option value="selection">Centre of selection</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="actions">
+      <button type="button" id="create" class="primary">Create QR code</button>
+      <p class="status" id="status" role="status"></p>
+    </section>
+  </main>
+
+  <script src="js/qr-core.js"></script>
+  <script src="js/panel.js"></script>
+</body>
+</html>

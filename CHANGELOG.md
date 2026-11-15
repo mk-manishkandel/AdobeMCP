@@ -21,6 +21,9 @@ Vector QR codes in Illustrator.
   with a quiet-zone background; `style: "dots"` keeps square finder eyes. Fill takes hex, swatch or gradient.
 - Standalone script `plugins/illustrator/QR Code.jsx` (File › Scripts) with a dialog for text/URL, Wi-Fi, email and
   phone, built from the same sources by `npm run build:qr-plugin`.
+- QR Code panel for Illustrator (CEP, Window › Extensions › QR Code) with a live preview and placement at the
+  artboard or selection centre; `npm run install:qr-panel` installs it for the current user, signed with a
+  throwaway self-signed certificate when `ZXPSIGNCMD` points at Adobe's ZXPSignCmd.
 - JSX lint now rejects unparenthesised chained ternaries: ExtendScript parses `a ? b : c ? d : e` differently from
   JavaScript, which silently corrupted QR codes up to version 9 until it was caught live.
 

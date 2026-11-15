@@ -1,7 +1,7 @@
 /*
  * qr-dialog.jsx: the "QR Code" dialog for the standalone Illustrator script.
- * Built together with jsx/qr-encoder.jsx and jsx/qr-draw.jsx into
- * plugins/illustrator/QR Code.jsx by scripts/build-qr-plugin.mjs.
+ * Built with jsx/qr-encoder.jsx, jsx/qr-draw.jsx, qr-payloads.jsx and qr-place.jsx
+ * into plugins/illustrator/QR Code.jsx by scripts/build-qr-plugin.mjs.
  * ES3 only. Avoid chained "a ? b : c ? d : e" (ExtendScript mis-parses it).
  */
 
@@ -10,127 +10,14 @@ var QRP_TYPES = ['Text / URL', 'Wi-Fi', 'Email', 'Phone'];
 var QRP_ECC = ['L - 7%', 'M - 15%', 'Q - 25%', 'H - 30%'];
 var QRP_ECC_CODES = ['L', 'M', 'Q', 'H'];
 var QRP_SECURITY = ['WPA/WPA2/WPA3', 'WEP', 'None'];
-var QRP_SECURITY_CODES = ['WPA', 'WEP', 'nopass'];
 var QRP_STYLES = ['Square', 'Dots'];
 var QRP_DEFAULT_SIZE = 200;
 var QRP_DEFAULT_QUIET = 4;
 var QRP_MIN_SIZE = 10;
 var QRP_MAX_SIZE = 10000;
 var QRP_MAX_QUIET = 16;
-var QRP_NEW_DOC_SIZE = 600;
 var QRP_FIELD_WIDTH = 300;
 var QRP_LABEL_WIDTH = 110;
-
-/* ---------- payloads ---------- */
-
-/* Backslash-escapes the characters the Wi-Fi QR format reserves. */
-function qrpWifiEscape(s) {
-  return String(s).replace(/([\\;,:"])/g, '\\$1');
-}
-
-function qrpWifiPayload(ssid, password, securityIndex, hidden) {
-  if (ssid === '') throw new Error('Enter the Wi-Fi network name (SSID).');
-  var type = QRP_SECURITY_CODES[securityIndex];
-  var out = 'WIFI:T:' + type + ';S:' + qrpWifiEscape(ssid) + ';';
-  if (type !== 'nopass') {
-    if (password === '') throw new Error('Enter the Wi-Fi password, or choose security "None".');
-    out += 'P:' + qrpWifiEscape(password) + ';';
-  }
-  if (hidden) out += 'H:true;';
-  return out + ';';
-}
-
-function qrpEmailPayload(to, subject, body) {
-  if (to === '') throw new Error('Enter the email address.');
-  var params = [];
-  if (subject !== '') params.push('subject=' + encodeURIComponent(subject));
-  if (body !== '') params.push('body=' + encodeURIComponent(body));
-  return 'mailto:' + to + (params.length ? '?' + params.join('&') : '');
-}
-
-function qrpPhonePayload(number) {
-  var clean = String(number).replace(/[^0-9+*#]/g, '');
-  if (clean === '' || clean === '+') throw new Error('Enter a phone number.');
-  return 'tel:' + clean;
-}
-
-function qrpTextPayload(text) {
-  if (text === '' || text === 'https://') throw new Error('Enter the text or link to encode.');
-  return text;
-}
-
-/* ---------- values ---------- */
-
-function qrpHex(value, label) {
-  var s = String(value).replace(/^\s+|\s+$/g, '').replace(/^#/, '');
-  if (/^[0-9A-Fa-f]{3}$/.test(s)) s = s.charAt(0) + s.charAt(0) + s.charAt(1) + s.charAt(1) + s.charAt(2) + s.charAt(2);
-  if (!/^[0-9A-Fa-f]{6}$/.test(s)) throw new Error(label + ' must be a hex colour like #000000.');
-  return { r: parseInt(s.substr(0, 2), 16), g: parseInt(s.substr(2, 2), 16), b: parseInt(s.substr(4, 2), 16) };
-}
-
-function qrpNumber(value, label, min, max) {
-  var n = parseFloat(value);
-  if (isNaN(n) || n < min || n > max) throw new Error(label + ' must be a number from ' + min + ' to ' + max + '.');
-  return n;
-}
-
-/* Pure black becomes 100% K in CMYK documents (crisp single-plate print); other colours convert from RGB. */
-function qrpColor(doc, rgb) {
-  var isBlack = rgb.r === 0 && rgb.g === 0 && rgb.b === 0;
-  if (doc.documentColorSpace === DocumentColorSpace.CMYK && isBlack) {
-    var k = new CMYKColor();
-    k.black = 100;
-    return k;
-  }
-  var c = new RGBColor();
-  c.red = rgb.r;
-  c.green = rgb.g;
-  c.blue = rgb.b;
-  return c;
-}
-
-/* ---------- drawing ---------- */
-
-function qrpTargetDocument() {
-  if (app.documents.length > 0) return app.activeDocument;
-  return app.documents.add(DocumentColorSpace.RGB, QRP_NEW_DOC_SIZE, QRP_NEW_DOC_SIZE);
-}
-
-function qrpTargetLayer(doc) {
-  var layer = doc.activeLayer;
-  if (layer.locked || !layer.visible) throw new Error('The active layer "' + layer.name + '" is locked or hidden. Pick another layer.');
-  return layer;
-}
-
-function qrpBackground(group, doc, top, left, opts) {
-  var bg = group.pathItems.rectangle(top, left, opts.size, opts.size);
-  bg.name = 'QR background';
-  bg.stroked = false;
-  bg.filled = true;
-  bg.fillColor = qrpColor(doc, opts.background);
-}
-
-/* Draws the QR centred on the active artboard; returns {group, qr}. */
-function qrpCreate(opts) {
-  var qr = __qrEncode(opts.text, opts.ecc, 0);
-  var doc = qrpTargetDocument();
-  var layer = qrpTargetLayer(doc);
-  var r = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect;
-  var left = (r[0] + r[2]) / 2 - opts.size / 2;
-  var top = (r[1] + r[3]) / 2 + opts.size / 2;
-  var m = opts.size / (qr.size + 2 * opts.quiet);
-  var q = opts.quiet;
-  var map = function (mx, my) { return [left + (mx + q) * m, top - (my + q) * m]; };
-  var group = layer.groupItems.add();
-  group.name = 'QR Code';
-  if (opts.background) qrpBackground(group, doc, top, left, opts);
-  var compound = __qrDrawModules(group, qr, map, m, opts.style);
-  __qrFillCompound(compound, qrpColor(doc, opts.foreground));
-  compound.move(group, ElementPlacement.PLACEATBEGINNING);
-  doc.selection = null;
-  group.selected = true;
-  return { group: group, qr: qr };
-}
 
 /* ---------- dialog ---------- */
 

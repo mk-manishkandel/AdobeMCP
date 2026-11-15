@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { toJsLiteral } from '../src/bridge.mjs';
-import { ALL_JSX, JSX_DIR, SAMPLE_STATE, loadJsx, readJsx, run } from './helpers.mjs';
+import { ALL_JSX, JSX_DIR, ROOT, SAMPLE_STATE, loadJsx, run } from './helpers.mjs';
 
-const JSX_FILES = readdirSync(JSX_DIR).filter((f) => f.endsWith('.jsx'));
+const PLUGIN_SRC_DIR = join(ROOT, 'plugins', 'illustrator', 'src');
+const listJsx = (dir) => readdirSync(dir).filter((f) => f.endsWith('.jsx')).map((f) => join(dir, f));
+/* Everything that runs inside an Adobe app's ExtendScript engine: the MCP files, the plugin sources and the panel host. */
+const JSX_FILES = [
+  ...listJsx(JSX_DIR),
+  ...listJsx(PLUGIN_SRC_DIR),
+  join(ROOT, 'plugins', 'illustrator', 'qr-panel', 'jsx', 'host.jsx'),
+];
 
 function stripCommentsAndStrings(src) {
   return src
@@ -28,13 +36,16 @@ const ES3_FORBIDDEN = [
   [/\?[^?:;()]*:[^?;()]*\?/, 'chained a ? b : c ? d : e without parentheses (ExtendScript mis-parses it)'],
 ];
 
-for (const file of JSX_FILES) {
+for (const path of JSX_FILES) {
+  const file = relative(ROOT, path);
+  const source = () => readFileSync(path, 'utf8');
+
   test(`${file} parses`, () => {
-    assert.doesNotThrow(() => new vm.Script(readJsx(file), { filename: file }));
+    assert.doesNotThrow(() => new vm.Script(source(), { filename: file }));
   });
 
   test(`${file} uses only ES3 syntax ExtendScript understands`, () => {
-    const code = stripCommentsAndStrings(readJsx(file));
+    const code = stripCommentsAndStrings(source());
     for (const [re, what] of ES3_FORBIDDEN) {
       const line = code.split('\n').findIndex((l) => re.test(l));
       assert.equal(line, -1, `${file}:${line + 1} uses ${what}`);

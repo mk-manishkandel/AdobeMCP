@@ -4,12 +4,15 @@
 ![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A520-339933)
 ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
 ![Illustrator 2026](https://img.shields.io/badge/Adobe%20Illustrator-2026-FF9A00)
+![Photoshop 2026](https://img.shields.io/badge/Adobe%20Photoshop-2026-31A8FF)
 
 A local, zero-dependency [MCP](https://modelcontextprotocol.io) server that lets Claude drive **Adobe Illustrator 2026**
-on macOS: build social posts, posters and banners, fill templates, make size variants, look at the result, and
-export. Photoshop (`ps_*` tools) is planned; the structure is ready for it.
+and **Adobe Photoshop 2026** on macOS: build social posts, posters and banners, fill templates, edit photos, make size
+variants, look at the result, and export.
 
-**28 tools**:
+**51 tools**: 28 for Illustrator (`ai_*`) and 23 for Photoshop (`ps_*`).
+
+Illustrator:
 - documents, artboards and layers;
 - text, with styled runs and Nepali support;
 - shapes and Bézier curves;
@@ -22,9 +25,20 @@ export. Photoshop (`ps_*` tools) is planned; the structure is ready for it.
 - live previews that Claude can see;
 - PNG, JPG, SVG and WebP export, and print PDFs.
 
+Photoshop:
+- documents, canvas size, crop, rotate, trim;
+- text layers (point and paragraph, Nepali included);
+- vector shape layers and placed images as smart objects;
+- layer styles: drop shadow, outer glow, stroke, colour and gradient overlay;
+- non-destructive adjustment layers and smart filters;
+- Remove Background;
+- groups, alignment, blend modes, clipping;
+- one undo step per tool call;
+- live previews, PNG/JPG export, PSD/TIFF/PDF save.
+
 - No npm packages: plain Node ≥ 20 (tested on Node 24.22.1, Apple Silicon).
-- Talks to Illustrator through its public scripting interface: AppleScript `do javascript` running ExtendScript.
-  Nothing inside the Illustrator app bundle or Adobe folders is installed or modified.
+- Talks to Illustrator and Photoshop through their public scripting interface: AppleScript `do javascript` running
+  ExtendScript. Nothing inside the app bundles or Adobe folders is installed or modified.
 - Full UTF-8, including Nepali (Devanagari) text, which is set with Illustrator's World-Ready composer automatically.
 
 ## Setup
@@ -81,7 +95,7 @@ export. Photoshop (`ps_*` tools) is planned; the structure is ready for it.
 
 ### The macOS Automation prompt
 
-The first time the server talks to Illustrator, macOS asks:
+The first time the server talks to Illustrator (and again for Photoshop), macOS asks:
 **"<app>" wants access to control "Adobe Illustrator.app".** Click **Allow**. The `<app>` is whatever launched the
 server: **Claude** for the desktop app, or your terminal (Terminal, iTerm, Ghostty, VS Code…) for Claude Code.
 
@@ -101,11 +115,12 @@ Other errors you might see:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AI_APP` | `com.adobe.illustrator` | Bundle id or app name to target |
+| `AI_APP` | `com.adobe.illustrator` | Illustrator bundle id or app name to target |
+| `PS_APP` | `com.adobe.Photoshop` | Photoshop bundle id or app name to target |
 | `ADOBE_MCP_TIMEOUT` | `600` | Seconds per call before giving up |
 | `ADOBE_MCP_DEBUG` | unset | `1` = verbose logging on stderr |
 | `ADOBE_MCP_KEEP_TMP` | unset | `1` = keep the generated `.jsx` files in `$TMPDIR/adobe-mcp` |
-| `ADOBE_MCP_ALLOW_RUN_SCRIPT` | `1` | `0` = hide `ai_run_script`, so Claude can only use the typed tools |
+| `ADOBE_MCP_ALLOW_RUN_SCRIPT` | `1` | `0` = hide `ai_run_script` and `ps_run_script`, so Claude can only use the typed tools |
 
 Pass them in the desktop config as `"env": { "ADOBE_MCP_DEBUG": "1" }`, or with `-e KEY=value` on `claude mcp add`.
 
@@ -188,6 +203,41 @@ Each tool's full parameter list is in its JSON schema, which Claude sees directl
   through this server. For a fade, use a gradient whose stops have `opacity`.
 - **True 3D (Effect > 3D and Materials):** not scriptable; `ai_distort` `extrude` gives a flat-shaded 3D look instead.
 
+## Photoshop
+
+Photoshop tools use the same conventions: px, **(0, 0) at the top-left of the canvas, y down**, boxes `{x, y, w, h}`,
+colours `"#RRGGBB"`. Layers are referenced by the `id` a tool returned (or `ps_get_document_info` lists) or a unique
+name. Reported boxes are the layer's pixels, without layer effects such as shadows.
+
+| Tool | What it does |
+| --- | --- |
+| `ps_status` | Photoshop version and open documents. |
+| `ps_get_document_info` | Every layer (groups walked): id, name, kind, box, opacity, blend mode, text details. |
+| `ps_new_document` / `ps_open` / `ps_close` | Create (size, ppi, colour mode, colour or transparent background), open or switch, close. |
+| `ps_save` | Save layered `.psd`, `.tif` or `.pdf`. |
+| `ps_canvas` | Resize image or canvas, crop, rotate, trim, flatten. |
+| `ps_list_fonts` | Find PostScript font names (search "devanagari" for Nepali). |
+| `ps_add_text` / `ps_set_text` | Point or paragraph text; edit text and style keeping its anchor; shrink to fit a width. |
+| `ps_add_shape` | Vector rectangle, rounded rectangle or ellipse layer. |
+| `ps_place_image` | Place a file as an embedded smart object: fill (cropped by a vector mask), fit, stretch or natural size. |
+| `ps_set_layer` | Move, resize, rotate, opacity, fill opacity, blend mode, colour, arrange, group, clip, lock, duplicate, delete. |
+| `ps_group` / `ps_align` | Group/ungroup layers; align to the canvas with a margin. |
+| `ps_layer_style` | Drop shadow, outer glow, stroke, colour overlay, gradient overlay (each call sets the whole style). |
+| `ps_adjust` | Adjustment layer, clipped to one layer or affecting all below: brightness/contrast, hue/saturation, levels, exposure, vibrance, black & white, invert, posterize, threshold. |
+| `ps_filter` | Gaussian/motion blur, unsharp mask, noise, high pass, sharpen; text and shapes become smart objects so filters stay editable. |
+| `ps_cutout` | Remove Background into a layer mask (needs a photo with a clear subject). |
+| `ps_preview` / `ps_export` | See the canvas as an image; export flat PNG/JPG at any size (the document is untouched). |
+| `ps_undo` | Undo the last N `ps_*` calls (each call is one history step). |
+| `ps_run_script` | Escape hatch: raw ExtendScript in Photoshop (pixel units, dialogs off). |
+
+Typical flow: `ps_status` → `ps_new_document` / `ps_open` → add layers → styles, adjustments, filters →
+`ps_preview` → fix → `ps_export` or `ps_save`.
+
+Notes:
+- Remove Background finds no subject in graphics or illustrations and then fails with a clear error; on such
+  images Photoshop itself can take minutes before giving up.
+- `ps_canvas` is a single Photoshop operation (its history step has Photoshop's own name, e.g. "Canvas Size").
+
 ## Production behaviour
 
 - **Timeouts:** each call is limited to `ADOBE_MCP_TIMEOUT` seconds; quick read-only tools (`ai_status`,
@@ -269,17 +319,20 @@ A tool is **a JSX function plus a schema entry with the same name**. Example: `a
    JSX function and a valid schema), run `npm test`, then add a live check to `test/live/live.mjs` and run
    `npm run test:live`.
 
-**Adding Photoshop later:** create `jsx/photoshop.jsx` and `src/apps/photoshop/index.mjs` exporting
-`photoshopApp(env)` with `target` (bundle id `com.adobe.Photoshop`), `jsxFiles` and `ps_*` tools, then add it to
-`loadApps` in `src/apps/index.mjs`. The bridge, queue, validation and MCP layers are shared.
+**Photoshop tools** follow the same pattern: JSX in `jsx/photoshop-*.jsx` (helpers in `jsx/photoshop.jsx`:
+`__findLayer`, `__layerInfo`, `__box`, `__step` for one undo step), schemas in `src/apps/photoshop/*-tools.mjs`,
+names in `REQUIRED_TOOLS` of `test/photoshop-catalog.test.mjs`, live checks in `test/live/live-photoshop.mjs`.
+Another app is added the same way: a `jsx/<app>*.jsx` runtime and a `src/apps/<app>/index.mjs` registered in
+`loadApps` (`src/apps/index.mjs`). The bridge, queue, validation and MCP layers are shared.
 
 ## Tests
 
-| Command | Needs Illustrator | What it covers |
+| Command | Needs the app | What it covers |
 | --- | --- | --- |
-| `npm test` | no | MCP protocol, validation, bridge (fake osascript), JSX parse/ES3 lint, tool catalog |
+| `npm test` | no | MCP protocol, validation, bridge (fake osascript), JSX parse/ES3 lint, tool catalogs |
 | `npm run test:coverage` | no | Same, with coverage |
-| `npm run test:live` | yes | Every tool through the real server over stdio |
+| `npm run test:live` | Illustrator | Every `ai_*` tool through the real server over stdio |
+| `npm run test:live:ps` | Photoshop | Every `ps_*` tool; set `PS_LIVE_SUBJECT_PHOTO` to a photo of a person, animal or object to include Remove Background |
 | `npm run demo` | yes | End-to-end admission post + story export |
 
 ## License

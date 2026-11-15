@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 (2026-11-15)
+
+Adobe Photoshop support: 23 `ps_*` tools in the same server, next to the Illustrator ones.
+
+- Documents: `ps_status`, `ps_get_document_info`, `ps_new_document`, `ps_open`, `ps_close`, `ps_save` (psd/tif/pdf),
+  `ps_canvas` (resize image/canvas, crop, rotate, trim, flatten), `ps_list_fonts`, `ps_undo`.
+- Layers: `ps_add_text`, `ps_set_text` (Nepali included, shrink-to-fit), `ps_add_shape` (vector shapes),
+  `ps_place_image` (smart objects; fill mode crops with a vector mask), `ps_set_layer`, `ps_group`, `ps_align`.
+- Looks: `ps_layer_style`, `ps_adjust` (adjustment layers, optionally clipped), `ps_filter` (smart filters),
+  `ps_cutout` (Remove Background).
+- Output: `ps_preview` (image Claude can see), `ps_export` (PNG/JPG via a throwaway copy), `ps_run_script`.
+- Every `ps_*` call that changes a document is one history step.
+- Shared schema helpers moved to `src/apps/shared-schemas.mjs`. New `PS_APP` variable and `npm run test:live:ps`.
+
 ## 1.1.0 (2026-11-13)
 
 Nine new tools and richer paint, so most of Illustrator's everyday features have a typed tool.

@@ -112,7 +112,7 @@ test('preview handler returns image content and removes the temp png', async () 
       return { path: args.path, artboard: 0, artboard_name: 'Post', width: 800, height: 800 };
     },
   };
-  const content = await previewHandler({ max_size: 800 }, ctx);
+  const content = await previewHandler({ max_size: 800 }, { ...ctx, tool: { name: 'ai_preview' } });
   assert.equal(calledWith.fn, 'ai_preview');
   assert.equal(content[0].type, 'image');
   assert.equal(content[0].mimeType, 'image/png');

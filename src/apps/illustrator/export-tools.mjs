@@ -1,12 +1,10 @@
 /**
  * Export ai_* tools. ai_preview returns the rendered artboard as MCP image content.
  */
-import { randomUUID } from 'node:crypto';
-import { readFile, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { PREVIEW_DEFAULT_SIZE, previewHandler } from '../shared-schemas.mjs';
 import { artboard, filePath, objectSchema, overwrite, withNoClobber } from './schemas.mjs';
 
-export const PREVIEW_DEFAULT_SIZE = 800;
+export { PREVIEW_DEFAULT_SIZE, previewHandler };
 
 const exportTool = {
   name: 'ai_export',
@@ -43,21 +41,6 @@ const preview = {
   annotations: { readOnlyHint: true },
   handler: previewHandler,
 };
-
-export async function previewHandler(args, ctx) {
-  const path = join(ctx.tmpDir, `preview-${randomUUID()}.png`);
-  const result = await ctx.call('ai_preview', { ...args, path });
-  try {
-    const data = await readFile(result.path);
-    const summary = { artboard: result.artboard, artboard_name: result.artboard_name, width: result.width, height: result.height };
-    return [
-      { type: 'image', data: data.toString('base64'), mimeType: 'image/png' },
-      { type: 'text', text: JSON.stringify(summary) },
-    ];
-  } finally {
-    await unlink(result.path).catch(() => {});
-  }
-}
 
 const exportPdf = {
   name: 'ai_export_pdf',

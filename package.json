@@ -1,14 +1,16 @@
 {
   "name": "adobe-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Local, zero-dependency MCP server that lets Claude design in Adobe Illustrator on macOS: text, shapes, gradients, effects, pathfinder, layers, symbols, image trace and export.",
+  "description": "Local, zero-dependency MCP server that lets Claude design in Adobe Illustrator and Photoshop on macOS: text, shapes, gradients, effects, layers, layer styles, adjustments, filters, background removal and export.",
   "keywords": [
     "mcp",
     "model-context-protocol",
     "claude",
     "adobe-illustrator",
     "illustrator",
+    "adobe-photoshop",
+    "photoshop",
     "extendscript",
     "applescript",
     "macos",
@@ -37,6 +39,7 @@
     "test": "node --test \"test/**/*.test.mjs\"",
     "test:coverage": "node --test --experimental-test-coverage \"test/**/*.test.mjs\"",
     "test:live": "node test/live/live.mjs",
+    "test:live:ps": "node test/live/live-photoshop.mjs",
     "demo": "node scripts/demo-admission.mjs"
   }
 }
